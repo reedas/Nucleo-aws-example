@@ -1,0 +1,6 @@
+BUILD
+.mbed
+mbed-aws-client
+mbed-os
+wifi-ism43362
+aws_credentials.h

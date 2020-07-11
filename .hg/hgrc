@@ -1,0 +1,5 @@
+[paths]
+default=https://os.mbed.com/users/reedas/code/Nucleo-aws-example/
+
+[extensions]
+strip =
