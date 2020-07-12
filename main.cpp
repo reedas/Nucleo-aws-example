@@ -3,6 +3,8 @@
 #include "mbedtls/debug.h"
 #include "aws_credentials.h"
 #include "EthernetInterface.h"
+#include "DS1820.h"
+#include <string>
 extern "C" {
 // sdk initialization
 #include "iot_init.h"
@@ -13,6 +15,8 @@ extern "C" {
 // debugging facilities
 #define TRACE_GROUP "Main"
 static Mutex trace_mutex;
+static float setPoint = 20.0;
+static bool interrupted = false;
 static void trace_mutex_lock()
 {
     trace_mutex.lock();
@@ -35,14 +39,27 @@ static void on_message_received(void * pCallbackContext, IotMqttCallbackParam_t 
     char* payload = (char*)pCallbackParam->u.message.info.pPayload;
     auto payloadLen = pCallbackParam->u.message.info.payloadLength;
     tr_debug("from topic:%s; msg: %.*s", pCallbackParam->u.message.info.pTopicName, payloadLen, payload);
-
-    if (strncmp("Warning", payload, 7) != 0) {
-        tr_info("Hello %.*s !", payloadLen, payload);
-        wait_sem->release();
-    }
+    setPoint = std::stof(payload);
+//  if (strncmp("Warning", payload, 7) != 0) {
+    tr_info("Temperature Set Point %.*s !", payloadLen, payload);
+    interrupted = true;
+    wait_sem->release();
+    
 }
 int main()
 {
+    DigitalOut greenLED(LED1);
+    DigitalOut blueED(LED2);
+    DigitalOut redLED(LED3);
+    
+    DS1820 ds1820(D8);
+    ds1820.begin();
+    static float temperature;
+    static int currentTemperature = 0;
+    static int lastTemperature = 0;
+    AnalogIn ldr(A0);
+    int8_t lightLevel;
+    int8_t lastlightLevel0 = 0;
     mbed_trace_mutex_wait_function_set( trace_mutex_lock ); // only if thread safety is needed
     mbed_trace_mutex_release_function_set( trace_mutex_unlock ); // only if thread safety is needed
     mbed_trace_init();
@@ -108,8 +125,9 @@ int main()
     //   On message
     //   - Display on the console: "Hello %s", message
     /* Set the members of the subscription. */
-    static const char topic[] = MBED_CONF_APP_AWS_MQTT_TOPIC;
+    static char topic[50];  //MBED_CONF_APP_AWS_MQTT_TOPIC;
     Semaphore wait_sem {/* count */ 0, /* max_count */ 1};
+    sprintf( topic,"%s/setPoint", MBED_CONF_APP_AWS_CLIENT_IDENTIFIER);
 
     IotMqttSubscription_t subscription = IOT_MQTT_SUBSCRIPTION_INITIALIZER;
     subscription.qos = IOT_MQTT_QOS_1;
@@ -124,38 +142,71 @@ int main()
                                             /* subscription count */ 1, /* flags */ 0,
                                             /* timeout ms */ MQTT_TIMEOUT_MS );
     if (sub_status != IOT_MQTT_SUCCESS) {
-        tr_error("AWS Sdk: Subscribe failed with : %u", sub_status);
+        tr_error("AWS Subscribe failed with : %u", sub_status);
     }
 
     /* Set the members of the publish info. */
     IotMqttPublishInfo_t publish = IOT_MQTT_PUBLISH_INFO_INITIALIZER;
     publish.qos = IOT_MQTT_QOS_1;
-    publish.pTopicName = topic;
-    publish.topicNameLength = strlen(topic);
     publish.retryLimit = 3;
     publish.retryMs = 1000;
-    for (uint32_t i = 0; i < 10; i++) {
+//    for (uint32_t i = 0; i < 10; i++) {
+    bool A_OK = true;
+    int errorCount = 0;
+    while(A_OK) {
         // - for i in 0..9
         //  - wait up to 1 sec
         //  - if no message received Publish: "You have %d sec remaining to say hello...", 10-i
         //  - other wise, exit
-        if (wait_sem.try_acquire_for(1000)) {
-            break;
+        temperature = 0;
+        float tempval;
+        lightLevel = 0;
+        int result = 0;
+        bool tempError = false;
+        for (int i=0; i < 10; i++){
+            ds1820.startConversion();
+            if (wait_sem.try_acquire_for(99ms)) {
+                break;
+            }
+            ThisThread::sleep_for(1ms);
+            if((ds1820.read(tempval)) != 0) {
+                tempval = currentTemperature / 10;
+                tempError = true;
+                tr_warning("DS18B20 read Error.");
+            }
+            temperature += tempval;
         }
 
-        /* prepare the message */
+        /* prepare any messages */
         static char message[64];
-        snprintf(message, 64, "Warning: Only %lu second(s) left to say your name !", 10 - i);
-        publish.pPayload = message;
-        publish.payloadLength = strlen(message);
-
-        /* Publish the message. */
-        tr_info("sending warning message: %s", message);
-        auto pub_status = IotMqtt_PublishSync(connection, &publish,
-                                              /* flags */ 0, /* timeout ms */ MQTT_TIMEOUT_MS);
-        if (pub_status != IOT_MQTT_SUCCESS) {
-            tr_warning("AWS Sdk: failed to publish message with %u.", pub_status);
+        if (!interrupted) currentTemperature = (int)temperature;
+        else {
+            interrupted = false;
+            tr_info("Got interrupted ... discarding measurement %d", temperature);
         }
+        tr_info("Temperature is %d", currentTemperature);
+        if (currentTemperature != lastTemperature) {
+            snprintf(message, 64, "%d.%d", currentTemperature / 10, currentTemperature % 10 );
+            lastTemperature = currentTemperature;
+            publish.pPayload = message;
+            publish.payloadLength = strlen(message);
+
+            /* Publish the message. */
+            sprintf( topic,"%s/temperature", MBED_CONF_APP_AWS_CLIENT_IDENTIFIER);
+            publish.pTopicName = topic;
+            publish.topicNameLength = strlen(topic);
+
+            tr_info("Publishing telemetry message: %s", message);
+            auto pub_status = IotMqtt_PublishSync(connection, &publish,
+                                              /* flags */ 0, /* timeout ms */ MQTT_TIMEOUT_MS);
+            if (pub_status != IOT_MQTT_SUCCESS) {
+                tr_warning(" failed to publish message with %u.", pub_status);
+                if (errorCount++ > 10) A_OK = false;
+        }
+
+        }
+
+
     }
 
     /* Close the MQTT connection. */
@@ -166,7 +217,7 @@ int main()
 
     tr_info("Done");
     while (true) {
-        ThisThread::sleep_for(1000);
+        ThisThread::sleep_for(1s);
     }
     return 0;
 }
