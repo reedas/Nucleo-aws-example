@@ -31,6 +31,13 @@ extern "C" void aws_iot_puts(const char *msg) {
     puts(msg);
     trace_mutex_unlock();
 }
+static volatile bool buttonPress = false;
+
+/*
+ * Callback function called when the button1 is clicked.
+ */
+void btn1_rise_handler() { buttonPress = true; }
+
 EthernetInterface net;
 NTPClient ntp(&net);
 #define MQTT_TIMEOUT_MS    15000
@@ -91,6 +98,9 @@ int main()
 // Set the correct time
     time_t now = ntp.get_timestamp() + 3600;
     set_time(now);
+// Enable button 1
+    InterruptIn btn1(BUTTON1);
+    btn1.rise(btn1_rise_handler);
 
     // demo :
     // - Init sdk
@@ -238,7 +248,7 @@ int main()
             }
 
         }
-
+    if (buttonPress) A_OK = false;
     }
 
     /* Close the MQTT connection. */
