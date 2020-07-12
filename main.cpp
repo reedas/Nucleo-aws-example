@@ -4,6 +4,7 @@
 #include "aws_credentials.h"
 #include "EthernetInterface.h"
 #include "DS1820.h"
+#include "NTPClient.h"
 #include <string>
 extern "C" {
 // sdk initialization
@@ -31,6 +32,7 @@ extern "C" void aws_iot_puts(const char *msg) {
     trace_mutex_unlock();
 }
 EthernetInterface net;
+NTPClient ntp(&net);
 #define MQTT_TIMEOUT_MS    15000
 
 // subscription event handler
@@ -85,6 +87,11 @@ int main()
     SocketAddress eth;
     net.get_ip_address(&eth);
     tr_info("IP address: %s", eth.get_ip_address() ? eth.get_ip_address() : "None");
+
+// Set the correct time
+    time_t now = ntp.get_timestamp() + 3600;
+    set_time(now);
+
     // demo :
     // - Init sdk
     if (!IotSdk_Init()) {
