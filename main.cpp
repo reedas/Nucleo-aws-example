@@ -4,6 +4,7 @@
 #include "aws_credentials.h"
 #include "EthernetInterface.h"
 #include "DS1820.h"
+#include "Dht11.h"
 #include "NTPClient.h"
 #include <string>
 extern "C" {
@@ -60,7 +61,7 @@ int main()
     DigitalOut greenLED(LED1);
     DigitalOut blueED(LED2);
     DigitalOut redLED(LED3);
-    
+    Dht11 humid(D9);
     DS1820 ds1820(D8);
     ds1820.begin();
     static float temperature;
@@ -181,6 +182,7 @@ int main()
         lightLevel = 0;
         int result = 0;
         bool tempError = false;
+        humid.read();
         for (int i=0; i < 10; i++){
             ds1820.startConversion();
             if (wait_sem.try_acquire_for(99ms)) {
@@ -206,7 +208,9 @@ int main()
             interrupted = false;
             tr_info("Got interrupted ... discarding measurements %d, %d", (int)temperature, (int)lightLevel);
         }
-        tr_info("Temperature is %d, Light Level is %d%c", currentTemperature, currentLightLevel, 0x25);
+//        float dht11TempC=
+        tr_info("Temperature is %d, Light Level is %d%c, Temperature is %d, RH is %d%c",
+                currentTemperature, currentLightLevel, 0x25, (int)humid.getCelsius(), (int)humid.getHumidity(), 0x25);
         if (currentTemperature != lastTemperature) {
             snprintf(message, 64, "%d.%d", currentTemperature / 10, currentTemperature % 10 );
             lastTemperature = currentTemperature;
