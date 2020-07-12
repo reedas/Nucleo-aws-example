@@ -58,8 +58,9 @@ int main()
     static int currentTemperature = 0;
     static int lastTemperature = 0;
     AnalogIn ldr(A0);
-    int8_t lightLevel;
-    int8_t lastlightLevel0 = 0;
+    static float lightLevel;
+    int8_t currentLightLevel = 0;
+    int8_t lastlightLevel = 0;
     mbed_trace_mutex_wait_function_set( trace_mutex_lock ); // only if thread safety is needed
     mbed_trace_mutex_release_function_set( trace_mutex_unlock ); // only if thread safety is needed
     mbed_trace_init();
@@ -175,16 +176,20 @@ int main()
                 tr_warning("DS18B20 read Error.");
             }
             temperature += tempval;
+            lightLevel += (1 - ldr) * 10;
         }
 
         /* prepare any messages */
         static char message[64];
-        if (!interrupted) currentTemperature = (int)temperature;
+        if (!interrupted) {
+            currentTemperature = (int)temperature;
+            currentLightLevel = (int)lightLevel;
+        }
         else {
             interrupted = false;
-            tr_info("Got interrupted ... discarding measurement %d", temperature);
+            tr_info("Got interrupted ... discarding measurements %d, %d", (int)temperature, (int)lightLevel);
         }
-        tr_info("Temperature is %d", currentTemperature);
+        tr_info("Temperature is %d, Light Level is %d%c", currentTemperature, currentLightLevel, 0x25);
         if (currentTemperature != lastTemperature) {
             snprintf(message, 64, "%d.%d", currentTemperature / 10, currentTemperature % 10 );
             lastTemperature = currentTemperature;
@@ -202,10 +207,30 @@ int main()
             if (pub_status != IOT_MQTT_SUCCESS) {
                 tr_warning(" failed to publish message with %u.", pub_status);
                 if (errorCount++ > 10) A_OK = false;
-        }
+            }
 
         }
+        if (currentLightLevel != lastlightLevel) {
+            snprintf(message, 64, "%d", currentLightLevel );
+            lastlightLevel = currentLightLevel;
+            publish.pPayload = message;
+            publish.payloadLength = strlen(message);
 
+            /* Publish the message. */
+            sprintf( topic,"%s/lightLevel", MBED_CONF_APP_AWS_CLIENT_IDENTIFIER);
+
+            publish.pTopicName = topic;
+            publish.topicNameLength = strlen(topic);
+
+            tr_info("Publishing telemetry message: %s", message);
+            auto pub_status = IotMqtt_PublishSync(connection, &publish,
+                                              /* flags */ 0, /* timeout ms */ MQTT_TIMEOUT_MS);
+            if (pub_status != IOT_MQTT_SUCCESS) {
+                tr_warning(" failed to publish message with %u.", pub_status);
+                if (errorCount++ > 10) A_OK = false;
+            }
+
+        }
 
     }
 
