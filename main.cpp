@@ -6,6 +6,8 @@
 #include "DS1820.h"
 #include "Dht11.h"
 #include "NTPClient.h"
+#include "displayThread.h"
+#include "TM1638.h"
 #include <string>
 extern "C" {
 // sdk initialization
@@ -34,7 +36,16 @@ extern "C" void aws_iot_puts(const char *msg) {
 }
 static volatile bool buttonPress = false;
 
-/*
+// DisplayData_t size is 16 bytes (8 grids @ 10 segments)
+ TM1638::DisplayData_t all_str  = {0xFF,0x3F, 0xFF,0x3F, 0xFF,0x3F, 0xFF,0x3F, 0xFF,0x3F, 0xFF,0x3F, 0xFF,0x3F, 0xFF,0x3F};  
+ 
+ // KeyData_t size is 4 bytes  
+ TM1638::KeyData_t keydata; 
+ 
+ // TM1638 declaration
+ TM1638 TM1638(PA_5, PA_6, PA_7, PA_8);
+ 
+ /*
  * Callback function called when the button1 is clicked.
  */
 void btn1_rise_handler() { buttonPress = true; }
