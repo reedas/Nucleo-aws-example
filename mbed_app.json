@@ -15,8 +15,8 @@
     },
     "target_overrides": {
         "*": {
-            "mbed-trace.enable": true,
-            "mbed-trace.max-level": "TRACE_LEVEL_INFO",
+            "mbed-trace.enable": false,
+            "mbed-trace.max-level": "TRACE_LEVEL_NULL",
             "aws-client.log-puts": "aws_iot_puts",
             "aws-client.log-level-global": "IOT_LOG_INFO",
             "rtos.main-thread-stack-size": 8192,

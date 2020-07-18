@@ -14,7 +14,21 @@ extern "C" {
 // mqtt methods
 #include "iot_mqtt.h"
 }
+#define USING_LEDKEY8
+#ifdef USING_LEDKEY8
+#include "TM1638.h"
+#include "Font_7Seg.h"
 
+// KeyData_t size is 4 bytes
+TM1638::KeyData_t keydata;
+
+// TM1638_LEDKEY8 declaration (mosi, miso, sclk, cs SPI bus pins)
+TM1638_LEDKEY8 LEDKEY8(D11, D12, D13, D10);
+static char displayBuffer[20]= "Starting";
+#endif
+DigitalOut blueled(LED2);
+DigitalOut greenLED(LED1);
+DigitalOut redLED(LED3);
 // debugging facilities
 #define TRACE_GROUP "Main"
 static Mutex trace_mutex;
@@ -35,7 +49,19 @@ extern "C" void aws_iot_puts(const char *msg) {
 }
 static volatile bool buttonPress = false;
 
+#ifdef USING_LEDKEY8
 
+Thread thread;
+void display_thread()
+{
+            while(1) {
+                LEDKEY8.displayStringAt(displayBuffer, 0);
+                printf("%s\r\n", displayBuffer);
+                blueled = !blueled;
+                ThisThread::sleep_for(2000ms);
+            }
+}
+#endif
  /*
  * Callback function called when the button1 is clicked.
  */
@@ -55,14 +81,13 @@ static void on_message_received(void * pCallbackContext, IotMqttCallbackParam_t 
 //  if (strncmp("Warning", payload, 7) != 0) {
     tr_info("Temperature Set Point %.*s !", payloadLen, payload);
     interrupted = true;
+    redLED = !redLED;
     wait_sem->release();
     
 }
+
 int main()
 {
-    DigitalOut greenLED(LED1);
-    DigitalOut blueED(LED2);
-    DigitalOut redLED(LED3);
     Dht11 humid(D9);
     DS1820 ds1820(D8);
     ds1820.begin();
@@ -76,8 +101,24 @@ int main()
     mbed_trace_mutex_wait_function_set( trace_mutex_lock ); // only if thread safety is needed
     mbed_trace_mutex_release_function_set( trace_mutex_unlock ); // only if thread safety is needed
     mbed_trace_init();
+#ifdef USING_LEDKEY8
+    LEDKEY8.cls();
+//  LEDKEY8.writeData(all_str);
+//  ThisThread::sleep_for(2ms);
+    LEDKEY8.setBrightness(TM1638_BRT3);
+    ThisThread::sleep_for(1ms);
+    LEDKEY8.setBrightness(TM1638_BRT0);
+    ThisThread::sleep_for(1ms);
+    LEDKEY8.setBrightness(TM1638_BRT4);
 
+    ThisThread::sleep_for(1ms);
+    LEDKEY8.cls(true);
+    LEDKEY8.displayStringAt((char *) "HELLO",0);
+
+    thread.start(display_thread);
     tr_info("Connecting to the network...");
+#endif
+
 /*    auto eth = NetworkInterface::get_default_instance();
     if (eth == NULL) {
         tr_error("No Network interface found.");
@@ -104,7 +145,6 @@ int main()
 // Enable button 1
     InterruptIn btn1(BUTTON1);
     btn1.rise(btn1_rise_handler);
-
     // demo :
     // - Init sdk
     if (!IotSdk_Init()) {
@@ -165,7 +205,7 @@ int main()
     if (sub_status != IOT_MQTT_SUCCESS) {
         tr_error("AWS Subscribe failed with : %u", sub_status);
     }
-
+    
     /* Set the members of the publish info. */
     IotMqttPublishInfo_t publish = IOT_MQTT_PUBLISH_INFO_INITIALIZER;
     publish.qos = IOT_MQTT_QOS_1;
@@ -187,10 +227,10 @@ int main()
         humid.read();
         for (int i=0; i < 10; i++){
             ds1820.startConversion();
-            if (wait_sem.try_acquire_for(99ms)) {
+            if (wait_sem.try_acquire_for(1000ms)) {
                 break;
             }
-            ThisThread::sleep_for(1ms);
+            ThisThread::sleep_for(10ms);
             if((ds1820.read(tempval)) != 0) {
                 tempval = currentTemperature / 10;
                 tempError = true;
@@ -211,8 +251,9 @@ int main()
             tr_info("Got interrupted ... discarding measurements %d, %d", (int)temperature, (int)lightLevel);
         }
 //        float dht11TempC=
-        tr_info("Temperature is %d, Light Level is %d%c, Temperature is %d, RH is %d%c",
-                currentTemperature, currentLightLevel, 0x25, (int)humid.getCelsius(), (int)humid.getHumidity(), 0x25);
+        printf("Temperature is %d.%d, Light Level is %d%c, Temperature is %d, RH is %d%c\r\n",
+                currentTemperature/10, currentTemperature%10, currentLightLevel, 0x25, 
+                (int)humid.getCelsius(), (int)humid.getHumidity(), 0x25);
         if (currentTemperature != lastTemperature) {
             snprintf(message, 64, "%d.%d", currentTemperature / 10, currentTemperature % 10 );
             lastTemperature = currentTemperature;
@@ -254,6 +295,10 @@ int main()
             }
 
         }
+#ifdef USING_LEDKEY8
+        sprintf(displayBuffer, "T%d S%d ",currentTemperature/10, (int)setPoint);
+//            tr_info("%s\r\n", displayBuffer);
+#endif
     if (buttonPress) A_OK = false;
     }
 

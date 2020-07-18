@@ -51,13 +51,13 @@ int Dht11::read()
 
         //unsigned long t = micros();
         Timer t;
-        t. start();
+        t.start();
 
         loopCnt = 10000;
         while(_pin == 1)
             if (loopCnt-- == 0) return DHTLIB_ERROR_TIMEOUT;
 
-        if (t.read_us() > 40) bits[idx] |= (1 << cnt);
+        if (t.elapsed_time() > 40us) bits[idx] |= (1 << cnt);
         if (cnt == 0)   // next byte?
         {
             cnt = 7;    // restart at MSB
