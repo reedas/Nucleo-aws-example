@@ -14,7 +14,7 @@ extern "C" {
 // mqtt methods
 #include "iot_mqtt.h"
 }
-#define USING_LEDKEY8
+#undef USING_LEDKEY8
 #ifdef USING_LEDKEY8
 #include "TM1638.h"
 #include "Font_7Seg.h"
