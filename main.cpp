@@ -214,6 +214,8 @@ int main()
 //    for (uint32_t i = 0; i < 10; i++) {
     bool A_OK = true;
     int errorCount = 0;
+    int relHumidity = 101;
+    int dht11TempC = 101;
     while(A_OK) {
         // - for i in 0..9
         //  - wait up to 1 sec
@@ -223,8 +225,12 @@ int main()
         float tempval;
         lightLevel = 0;
         int result = 0;
+
         bool tempError = false;
-        humid.read();
+        if (humid.read() == 0) {
+            relHumidity = (int)humid.getHumidity();
+            dht11TempC = (int)humid.getCelsius();
+        }
         for (int i=0; i < 10; i++){
             ds1820.startConversion();
             if (wait_sem.try_acquire_for(1000ms)) {
@@ -253,7 +259,7 @@ int main()
 //        float dht11TempC=
         printf("Temperature is %d.%d, Light Level is %d%c, Temperature is %d, RH is %d%c\r\n",
                 currentTemperature/10, currentTemperature%10, currentLightLevel, 0x25, 
-                (int)humid.getCelsius(), (int)humid.getHumidity(), 0x25);
+                dht11TempC, relHumidity, 0x25);
         if (currentTemperature != lastTemperature) {
             snprintf(message, 64, "%d.%d", currentTemperature / 10, currentTemperature % 10 );
             lastTemperature = currentTemperature;
@@ -261,7 +267,7 @@ int main()
             publish.payloadLength = strlen(message);
 
             /* Publish the message. */
-            sprintf( topic,"%s/temperature", MBED_CONF_APP_AWS_CLIENT_IDENTIFIER);
+            sprintf( topic,"%s/currentTemp", MBED_CONF_APP_AWS_CLIENT_IDENTIFIER);
             publish.pTopicName = topic;
             publish.topicNameLength = strlen(topic);
 
