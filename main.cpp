@@ -100,8 +100,8 @@ typedef struct {
   command_t cmd;
   float value; /* eg ADC result of measured voltage */
 } msg_t;
-static Queue<msg_t, 32> queue;
-static MemoryPool<msg_t, 32> mpool;
+static Queue<msg_t, 16> queue;
+static MemoryPool<msg_t, 16> mpool;
 
 void awsSendUpdateTemperature(float temperature) {
   msg_t *message = mpool.alloc();
@@ -311,11 +311,11 @@ int main() {
   ds1820.begin();
   AnalogIn ldr(A0);
   while (A_OK) {
-                if (wait_sem.try_acquire_for(90ms)) {
+                if (wait_sem.try_acquire_for(50ms)) {
                 break;
             }
     //  float currentTemp, currentSetPt, currentLightLevel, currentRelHumid;
-    myData.lightLvl = (1 - ldr) * 10;
+    myData.lightLvl = (1 - ldr) * 100;
     if (humid.read() == 0) {
       myData.relHumid = humid.getHumidity();
     }
@@ -359,7 +359,9 @@ int main() {
     tr_info("Temp %d, light %d%c, RelHumid %d%c\r\n", myData.tempC,
             myData.lightLvl, 0x25, myData.relHumid, 0x25);
     while (!queue.empty()) {
-      ThisThread::sleep_for(50); // Messages can be rejected if sent too close
+      if (wait_sem.try_acquire_for(50ms)) {
+                break;
+            } // Messages can be rejected if sent too close
 
       osEvent evt = queue.get(0);
 
@@ -370,7 +372,7 @@ int main() {
         case CMD_sendTemperature:
           doPublish = true;
           sprintf(topic, "%s/currentTemp", MBED_CONF_APP_AWS_CLIENT_IDENTIFIER);
-          sprintf(update, "%2.1f", message->value);
+          sprintf(update, "%d.%d", (int)message->value,(int)((message->value)*10)%10);
 #ifdef USING_LEDKEY8
           sprintf(displayBuffer, "T%d S%d ", message->value, (int)setPoint);
 //            tr_info("%s\r\n", displayBuffer);
@@ -394,12 +396,12 @@ int main() {
         case CMD_sendSetPoint:
           doPublish = true;
           sprintf(topic, "%s/setPoint", MBED_CONF_APP_AWS_CLIENT_IDENTIFIER);
-          sprintf(update, "%2.1f", message->value);
+          sprintf(update, "%d.%d", (int)message->value,(int)((message->value)*10)%10);
           break;
         case CMD_sendDelta:
           doPublish = true;
           sprintf(topic, "%s/delta", MBED_CONF_APP_AWS_CLIENT_IDENTIFIER);
-          sprintf(update, "%2.1f", message->value);
+          sprintf(update, "%d.%d", (int)message->value,(int)((message->value)*10)%10);
           break;
         case CMD_sendLightLevel:
           doPublish = true;
@@ -462,6 +464,7 @@ int main() {
   tr_info("Done");
   while (true) {
     ThisThread::sleep_for(1s);
+    redLED = !redLED;
   }
   return 0;
 }
