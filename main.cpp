@@ -251,8 +251,9 @@ int main()
             tr_info("Got interrupted ... discarding measurements %d, %d", (int)temperature, (int)lightLevel);
         }
 //        float dht11TempC=
-        printf("Temperature is %d.%d, Light Level is %d%c, Temperature is %d, RH is %d%c\r\n",
-                currentTemperature/10, currentTemperature%10, currentLightLevel, 0x25, 
+        printf("Temperature/setPoint is %d.%d/%d.%d, Light Level is %d%c, Temperature is %d, RH is %d%c\r\n",
+                currentTemperature/10, currentTemperature%10, 
+                (int)setPoint, (int)(10*setPoint)%10, currentLightLevel, 0x25, 
                 (int)humid.getCelsius(), (int)humid.getHumidity(), 0x25);
         if (currentTemperature != lastTemperature) {
             snprintf(message, 64, "%d.%d", currentTemperature / 10, currentTemperature % 10 );
