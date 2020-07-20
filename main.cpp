@@ -232,8 +232,7 @@ int main() {
   }
   printf("Connected to MQTT(AWS)\r\n");
 
-  // - Subscribe to sdkTest/sub
-  //   On message
+  // - Subscribe to topic of interest (setPoint)
   /* Set the members of the subscription. */
   static char topic[50]; // MBED_CONF_APP_AWS_MQTT_TOPIC;
   Semaphore wait_sem{/* count */ 0, /* max_count */ 1};
@@ -257,46 +256,36 @@ int main() {
   }
   printf("Subscribed\r\n");
   printf("Starting Sensor readings\r\n");
+
   sensorThreadHandle.start(sensorThread);
+
   /* Set the members of the publish info. */
   IotMqttPublishInfo_t publish = IOT_MQTT_PUBLISH_INFO_INITIALIZER;
   publish.qos = IOT_MQTT_QOS_1;
   publish.retryLimit = 3;
   publish.retryMs = 1000;
-  //    for (uint32_t i = 0; i < 10; i++) {
+  
   bool doPublish = false;
-  char buffer[256];
-  char update[20];
-
   int errorCount = 0;
 
   while (A_OK) {
-    wait_sem.try_acquire_for(100ms);
-    //    if (readThem == 1) {
-
-    //    readThem = (readThem + 1) % 10;
-    while (!queue.empty()) {
-      //      if (wait_sem.try_acquire_for(50ms)) {
-      //        break;
-      //      }
+    wait_sem.try_acquire_for(50ms);
+     while (!queue.empty()) {
       ThisThread::sleep_for(50ms);
       // Messages can be rejected if sent too close
 
       osEvent evt = queue.get(0);
 
       if (evt.status == osEventMessage) {
+        char update[20];
         msg_t *message = (msg_t *)evt.value.p;
-        //        printf("%d", message->cmd);
+
         switch (message->cmd) {
         case CMD_sendTemperature:
           doPublish = true;
           sprintf(topic, "%s/currentTemp", MBED_CONF_APP_AWS_CLIENT_IDENTIFIER);
           sprintf(update, "%d.%d", (int)message->value,
                   (int)((message->value) * 10) % 10);
-#ifdef USING_LEDKEY8
-          sprintf(displayBuffer, "T%d S%d ", message->value, (int)setPoint);
-//            tr_info("%s\r\n", displayBuffer);
-#endif
           break;
         case CMD_sendIPAddress:
           doPublish = true;
