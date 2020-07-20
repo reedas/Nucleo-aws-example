@@ -1,6 +1,7 @@
 #include "mbed.h"
 #include "sensorThread.h"
 #include "awsPublish.h"
+#include "displayThread.h"
 
 extern float setPoint;
 extern bool A_OK;
@@ -48,42 +49,50 @@ void sensorThread(void)
     /* Do we need to cool(-1), heat(+1) or do nothing(0) */
     if (myData.tempC != myData.prevTempC) {
       awsSendUpdateTemperature(myData.tempC);
+      displaySendUpdateTemperature(myData.tempC);
       myData.prevTempC = myData.tempC;
     }
     if (myData.tempC > myData.setPoint + 0.5) {
       if (myData.controlMode != -1) {
         myData.controlMode = -1;
         awsSendUpdateMode(myData.controlMode);
+        displaySendUpdateMode(myData.controlMode);
       }
     } else if (myData.tempC < myData.setPoint - 0.5) {
 
       if (myData.controlMode != 1) {
         myData.controlMode = 1;
         awsSendUpdateMode(myData.controlMode);
+        displaySendUpdateMode(myData.controlMode);
       }
     } else if (myData.controlMode != 0) {
       myData.controlMode = 0;
       awsSendUpdateMode(myData.controlMode);
+      displaySendUpdateMode(myData.controlMode);
     }
 
     if (abs(myData.lightLvl - myData.prevLightlLvl) > 2) {
       awsSendUpdateLight(myData.lightLvl);
+      displaySendUpdateLight(myData.lightLvl);
       myData.prevLightlLvl = myData.lightLvl;
     }
     if (abs(myData.relHumid - myData.prevRelHumid) >= 2) {
       awsSendUpdateHumid(myData.relHumid);
+      displaySendUpdateHumid(myData.relHumid);
       myData.prevRelHumid = myData.relHumid;
     }
     if (myData.setPoint != setPoint) {
       myData.setPoint = setPoint;
       awsSendUpdateSetPoint(myData.setPoint);
+      displaySendUpdateSetPoint(myData.setPoint);
     }
 
-    printf("Temp/setPoint %d.%d/%d.%d, light %d%c, RelHumid %d%c\r\n",
+/*    printf("Temp/setPoint %d.%d/%d.%d, light %d%c, RelHumid %d%c\r\n",
            (int)myData.tempC, (int)(myData.tempC * 10) % 10,
            (int)myData.setPoint, (int)(myData.setPoint * 10) % 10,
            (int)myData.lightLvl, 0x25,
            (int)myData.relHumid, 0x25);
+ */ 
     ThisThread::sleep_for(1000ms);
   }
   printf("Sensors turned Off.....\r\n");

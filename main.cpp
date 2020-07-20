@@ -7,6 +7,8 @@
 #include "ctime"
 #include "awsPublish.h"
 #include "sensorThread.h"
+#include "displayThread.h"
+#include "blinkThread.h"
 #include <string>
 extern "C" {
 // sdk initialization
@@ -18,7 +20,7 @@ extern "C" {
 /* globals */
 Thread displayThreadHandle;
 Thread sensorThreadHandle;
-
+Thread blinkThreadHandle;
 
 DigitalOut blueLED(LED2);
 DigitalOut greenLED(LED1);
@@ -48,7 +50,7 @@ void btn1_rise_handler() { buttonPress = true; }
 EthernetInterface net;
 NTPClient ntp(&net);
 #define MQTT_TIMEOUT_MS 15000
-
+char buff[80];
 // subscription event handler
 
 static void on_message_received(void *pCallbackContext,
@@ -56,8 +58,11 @@ static void on_message_received(void *pCallbackContext,
   auto wait_sem = static_cast<Semaphore *>(pCallbackContext);
   char *payload = (char *)pCallbackParam->u.message.info.pPayload;
   auto payloadLen = pCallbackParam->u.message.info.payloadLength;
-  printf("from topic:%s; msg: %.*s\r\n",
-         pCallbackParam->u.message.info.pTopicName, payloadLen, payload);
+
+  sprintf( buff, "from topic:%s; msg: %s\r\n",
+         pCallbackParam->u.message.info.pTopicName, payload);
+  displaySendDebug( buff );
+
   //    if (strcmp())
   setPoint = std::stof(payload);
   //  if (strncmp("Warning", payload, 7) != 0) {
@@ -258,6 +263,9 @@ int main() {
   printf("Starting Sensor readings\r\n");
 
   sensorThreadHandle.start(sensorThread);
+  displayThreadHandle.start(displayThread);
+  blinkThreadHandle.start(blinkThread);
+
 
   /* Set the members of the publish info. */
   IotMqttPublishInfo_t publish = IOT_MQTT_PUBLISH_INFO_INITIALIZER;
@@ -275,9 +283,9 @@ int main() {
       // Messages can be rejected if sent too close
 
       osEvent evt = queue.get(0);
-
+      char update[20];
       if (evt.status == osEventMessage) {
-        char update[20];
+        
         msg_t *message = (msg_t *)evt.value.p;
 
         switch (message->cmd) {
