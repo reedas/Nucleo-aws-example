@@ -14,7 +14,7 @@ extern "C" {
 // mqtt methods
 #include "iot_mqtt.h"
 }
-#define USING_LEDKEY8
+#undef USING_LEDKEY8
 #ifdef USING_LEDKEY8
 #include "TM1638.h"
 #include "Font_7Seg.h"
@@ -23,7 +23,7 @@ extern "C" {
 TM1638::KeyData_t keydata;
 
 // TM1638_LEDKEY8 declaration (mosi, miso, sclk, cs SPI bus pins)
-TM1638_LEDKEY8 LEDKEY8(D11, D12, D13, D10);
+TM1638_LEDKEY8 LEDKEY8(PB_15, PC_2, PB_13, PB_12);
 static char displayBuffer[20]= "Starting";
 #endif
 DigitalOut blueled(LED2);

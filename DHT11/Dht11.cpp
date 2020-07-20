@@ -12,7 +12,6 @@ Dht11::Dht11(PinName const &p) : _pin(p) {
 
 int Dht11::read()
 {
-    time_t now = time(NULL);
     // BUFFER TO RECEIVE
     uint8_t bits[5];
     uint8_t cnt = 7;
@@ -22,7 +21,7 @@ int Dht11::read()
     for (int i=0; i< 5; i++) bits[i] = 0;
     
     // Verify sensor settled after boot
-    while(now  < 2) {}
+    while(_timer.elapsed_time() < 1500ms) {}
     _timer.stop();
 
     // Notify it we are ready to read
@@ -51,7 +50,7 @@ int Dht11::read()
 
         //unsigned long t = micros();
         Timer t;
-        t.start();
+        t. start();
 
         loopCnt = 10000;
         while(_pin == 1)
