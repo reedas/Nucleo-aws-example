@@ -1,5 +1,3 @@
-#include "DS1820.h"
-#include "Dht11.h"
 #include "EthernetInterface.h"
 #include "NTPClient.h"
 #include "aws_credentials.h"
@@ -7,8 +5,8 @@
 #include "mbed_trace.h"
 #include "mbedtls/debug.h"
 #include "ctime"
-//#include "awsPublish.h"
-//#include "TM1638.h"
+#include "awsPublish.h"
+#include "sensorThread.h"
 #include <string>
 extern "C" {
 // sdk initialization
@@ -16,27 +14,22 @@ extern "C" {
 // mqtt methods
 #include "iot_mqtt.h"
 }
-#undef USING_LEDKEY8
-#ifdef USING_LEDKEY8
-#include "Font_7Seg.h"
-#include "TM1638.h"
+
+/* globals */
+Thread displayThreadHandle;
+Thread sensorThreadHandle;
 
 
-// KeyData_t size is 4 bytes
-TM1638::KeyData_t keydata;
-
-// TM1638_LEDKEY8 declaration (mosi, miso, sclk, cs SPI bus pins)
-TM1638_LEDKEY8 LEDKEY8(PB_15, PC_2, PB_13, PB_12);
-static char displayBuffer[20] = "Starting";
-#endif
 DigitalOut blueLED(LED2);
 DigitalOut greenLED(LED1);
 DigitalOut redLED(LED3);
 // debugging facilities
 #define TRACE_GROUP "Main"
 static Mutex trace_mutex;
-static float setPoint = 20.5;
-static bool interrupted = false;
+
+float setPoint = 20.5;
+bool A_OK = true;
+
 static void trace_mutex_lock() { trace_mutex.lock(); }
 static void trace_mutex_unlock() { trace_mutex.unlock(); }
 extern "C" void aws_iot_puts(const char *msg) {
@@ -44,31 +37,9 @@ extern "C" void aws_iot_puts(const char *msg) {
   puts(msg);
   trace_mutex_unlock();
 }
+
 static volatile bool buttonPress = false;
 
-struct thingData {
-
-  float tempC = 0.1;
-  float prevTempC = -101;
-  int lightLvl = 101;
-  int prevLightlLvl = 0;
-  int relHumid = 101;
-  int prevRelHumid = 0;
-  float setPoint = 20.5;
-  int controlMode = 0;
-};
-#ifdef USING_LEDKEY8
-
-Thread thread;
-void display_thread() {
-  while (1) {
-    LEDKEY8.displayStringAt(displayBuffer, 0);
-    printf("%s\r\n", displayBuffer);
-    blueled = !blueled;
-    ThisThread::sleep_for(2000ms);
-  }
-}
-#endif
 /*
  * Callback function called when the button1 is clicked.
  */
@@ -91,7 +62,6 @@ static void on_message_received(void *pCallbackContext,
   setPoint = std::stof(payload);
   //  if (strncmp("Warning", payload, 7) != 0) {
   //    tr_info("Temperature Set Point %.*s !", payloadLen, payload);
-  interrupted = true;
 
   blueLED = !blueLED;
   wait_sem->release();
@@ -196,56 +166,18 @@ void awsSendUpdateIPAddress(void) {
 }
 
 int main() {
+  
+  printf("Started System\r\n");
+
   int pubCount = 0;
 
-  Dht11 humid(D9);
-  DS1820 ds1820(D8);
-  ds1820.begin();
-  static float temperature;
-  static int currentTemperature = 0;
-  static int lastTemperature = 0;
-  AnalogIn ldr(A0);
-  static float lightLevel;
-  int8_t currentLightLevel = 0;
-  int8_t lastlightLevel = 0;
+
   mbed_trace_mutex_wait_function_set(
       trace_mutex_lock); // only if thread safety is needed
   mbed_trace_mutex_release_function_set(
       trace_mutex_unlock); // only if thread safety is needed
   mbed_trace_init();
-#ifdef USING_LEDKEY8
-  LEDKEY8.cls();
-  //  LEDKEY8.writeData(all_str);
-  //  ThisThread::sleep_for(2ms);
-  LEDKEY8.setBrightness(TM1638_BRT3);
-  ThisThread::sleep_for(1ms);
-  LEDKEY8.setBrightness(TM1638_BRT0);
-  ThisThread::sleep_for(1ms);
-  LEDKEY8.setBrightness(TM1638_BRT4);
 
-  ThisThread::sleep_for(1ms);
-  LEDKEY8.cls(true);
-  LEDKEY8.displayStringAt((char *)"HELLO", 0);
-
-  thread.start(display_thread);
-  tr_info("Connecting to the network...");
-#endif
-
-  /*    auto eth = NetworkInterface::get_default_instance();
-      if (eth == NULL) {
-          tr_error("No Network interface found.");
-          return -1;
-      }
-   
-      auto ret = eth->connect();
-      if (ret != 0) {
-          tr_error("Connection error: %x", ret);
-          return -1;
-      }
-      tr_info("MAC: %s", eth->get_mac_address());
-  //    tr_info("IP: %s", eth->get_ip_address());
-      tr_info("Connection Success");
-  */
   net.connect();
   SocketAddress eth;
   net.get_ip_address(&eth);
@@ -257,12 +189,11 @@ int main() {
   set_time(now);
   char timeStr[20];
   //strftime(timeStr, 20, "%I:%M%p", now);
-  printf("Connected to Network @ %s.\r\n", ctime(&now));
+  printf("Connected to Network: IP is: %s at %s\r\n", eth.get_ip_address(), ctime(&now));
   // Enable button 1
   InterruptIn btn1(BUTTON1);
   btn1.rise(btn1_rise_handler);
-  // demo :
-  // - Init sdk
+  
   if (!IotSdk_Init()) {
     tr_error("AWS Sdk: failed to initialize IotSdk");
     return -1;
@@ -303,7 +234,6 @@ int main() {
 
   // - Subscribe to sdkTest/sub
   //   On message
-  //   - Display on the console: "Hello %s", message
   /* Set the members of the subscription. */
   static char topic[50]; // MBED_CONF_APP_AWS_MQTT_TOPIC;
   Semaphore wait_sem{/* count */ 0, /* max_count */ 1};
@@ -326,7 +256,8 @@ int main() {
     tr_error("AWS Subscribe failed with : %u", sub_status);
   }
   printf("Subscribed\r\n");
-
+  printf("Starting Sensor readings\r\n");
+  sensorThreadHandle.start(sensorThread);
   /* Set the members of the publish info. */
   IotMqttPublishInfo_t publish = IOT_MQTT_PUBLISH_INFO_INITIALIZER;
   publish.qos = IOT_MQTT_QOS_1;
@@ -336,67 +267,12 @@ int main() {
   bool doPublish = false;
   char buffer[256];
   char update[20];
-  bool A_OK = true;
+
   int errorCount = 0;
-  static thingData myData;
-  awsSendUpdateSetPoint(myData.setPoint);
-  awsSendUpdateMode(myData.controlMode);
-  awsSendUpdateIPAddress();
-  ds1820.begin();
+
   while (A_OK) {
-    wait_sem.try_acquire_for(500ms);
+    wait_sem.try_acquire_for(100ms);
     //    if (readThem == 1) {
-    //  float currentTemp, currentSetPt, currentLightLevel, currentRelHumid;
-    myData.lightLvl = (1 - ldr) * 100;
-    //    }
-    if (humid.read() == 0) {
-      myData.relHumid = humid.getHumidity();
-    }
-
-    float tempVal;
-    ds1820.startConversion();
-    if ((ds1820.read(tempVal)) == 0) {
-      myData.tempC = tempVal;
-    }
-    /* Do we need to cool(-1), heat(+1) or do nothing(0) */
-    if (myData.tempC != myData.prevTempC) {
-      awsSendUpdateTemperature(myData.tempC);
-      myData.prevTempC = myData.tempC;
-    }
-    if (myData.tempC > myData.setPoint + 0.5) {
-      if (myData.controlMode != -1) {
-        myData.controlMode = -1;
-        awsSendUpdateMode(myData.controlMode);
-      }
-    } else if (myData.tempC < myData.setPoint - 0.5) {
-
-      if (myData.controlMode != 1) {
-        myData.controlMode = 1;
-        awsSendUpdateMode(myData.controlMode);
-      }
-    } else if (myData.controlMode != 0) {
-      myData.controlMode = 0;
-      awsSendUpdateMode(myData.controlMode);
-    }
-
-    if (abs(myData.lightLvl - myData.prevLightlLvl) > 2) {
-      awsSendUpdateLight(myData.lightLvl);
-      myData.prevLightlLvl = myData.lightLvl;
-    }
-    if (abs(myData.relHumid - myData.prevRelHumid) >= 2) {
-      awsSendUpdateHumid(myData.relHumid);
-      myData.prevRelHumid = myData.relHumid;
-    }
-    if (myData.setPoint != setPoint) {
-      myData.setPoint = setPoint;
-      awsSendUpdateSetPoint(myData.setPoint);
-    }
-
-    printf("Temp/setPoint %d.%d/%d.%d, %d.%d, light %d, RelHumid %d\r\n",
-           (int)myData.tempC, (int)(myData.tempC * 10) % 10,
-           (int)myData.setPoint, (int)(myData.setPoint * 10) % 10,
-           (int)setPoint, (int)(setPoint * 10) % 10, (int)myData.lightLvl,
-           (int)myData.relHumid);
 
     //    readThem = (readThem + 1) % 10;
     while (!queue.empty()) {
@@ -508,6 +384,7 @@ int main() {
   IotSdk_Cleanup();
   printf("Done and shut down on %s... Published %d Messages\r\n", ctime(&now), pubCount);
   tr_info("Done");
+
   while (true) {
     ThisThread::sleep_for(1s);
     blueLED = !blueLED;
