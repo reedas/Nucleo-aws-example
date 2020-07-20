@@ -7,7 +7,6 @@
 #include "mbedtls/debug.h"
 #include "sensorThread.h"
 
-
 //#include "TM1638.h"
 #include <string>
 extern "C" {
@@ -30,7 +29,7 @@ static char displayBuffer[20] = "Starting";
 static char lastBuffer[20] = "Starting";
 #endif
 
-DigitalOut blueled(LED2);
+DigitalOut blueLED(LED2);
 DigitalOut greenLED(LED1);
 DigitalOut redLED(LED3);
 // debugging facilities
@@ -82,7 +81,7 @@ static void on_message_received(void *pCallbackContext,
   tr_info("Temperature Set Point %.*s !", payloadLen, payload);
   setPoint = std::stof(payload);
   interrupted = true;
-  redLED = !redLED;
+  blueLED = !blueLED;
   wait_sem->release();
 }
 typedef enum {
@@ -136,12 +135,12 @@ void awsSendIPAddress(void) {
   }
 }
 void awsSendUpdateSetPoint(float setPoint) {
-  msg_t *message = mpool.alloc();
-  if (message) {
-    message->cmd = CMD_sendSetPoint;
-    message->value = setPoint;
-    queue.put(message);
-  }
+//  msg_t *message = mpool.alloc();
+//  if (message) {
+//    message->cmd = CMD_sendSetPoint;
+//    message->value = setPoint;
+//    queue.put(message);
+//  }
 }
 void awsSendUpdateDelta(float delta) {
   msg_t *message = mpool.alloc();
@@ -291,7 +290,7 @@ int main() {
   }
   tr_info("Starting Sensor reading");
 
-  //SensorThreadHandle.start(sensorThread);
+  // SensorThreadHandle.start(sensorThread);
 
   /* Set the members of the publish info. */
   IotMqttPublishInfo_t publish = IOT_MQTT_PUBLISH_INFO_INITIALIZER;
@@ -304,64 +303,73 @@ int main() {
   char update[20];
   bool A_OK = true;
   int errorCount = 0;
-  thingData myData;
+  static thingData myData;
 
   Dht11 humid(D9);
   DS1820 ds1820(D8);
   ds1820.begin();
   AnalogIn ldr(A0);
+  int readThem = 0;
   while (A_OK) {
-                if (wait_sem.try_acquire_for(50ms)) {
-                break;
-            }
-    //  float currentTemp, currentSetPt, currentLightLevel, currentRelHumid;
-    myData.lightLvl = (1 - ldr) * 100;
-    if (humid.read() == 0) {
-      myData.relHumid = humid.getHumidity();
+    if (wait_sem.try_acquire_for(500ms)) {
+      break;
     }
-    float tempVal;
-    ds1820.startConversion();
-    if ((ds1820.read(tempVal)) == 0) {
-      myData.tempC = tempVal;
+    if (readThem == 1) {
+      //  float currentTemp, currentSetPt, currentLightLevel, currentRelHumid;
+      myData.lightLvl = (1 - ldr) * 100;
     }
-    /* Do we need to cool(-1), heat(+1) or do nothing(0) */
-    if (myData.tempC != myData.prevTempC) {
-      awsSendUpdateTemperature(myData.tempC);
-      myData.prevTempC = myData.tempC;
-      if (myData.tempC > myData.setPoint + 0.5) {
-        if (myData.controlMode != -1) {
-          myData.controlMode = -1;
-          awsSendUpdateMode(myData.controlMode);
-        }
-      } else if (myData.tempC < myData.setPoint - 0.5) {
-
-        if (myData.controlMode != 1) {
-          myData.controlMode = 1;
-          awsSendUpdateMode(myData.controlMode);
-        }
-      } else if (myData.controlMode != 0) {
-        myData.controlMode = 0;
-        awsSendUpdateMode(myData.controlMode);
+      if (humid.read() == 0 && readThem == 1) {
+        myData.relHumid = humid.getHumidity();
       }
-    }
-    if (myData.lightLvl != myData.prevLightlLvl) {
-      awsSendUpdateLight(myData.lightLvl);
-      myData.prevLightlLvl = myData.lightLvl;
-    }
-    if (myData.relHumid != myData.prevRelHumid) {
-      awsSendUpdateHumid(myData.lightLvl);
-      myData.prevRelHumid = myData.relHumid;
-    }
-    if (myData.setPoint != setPoint) {
-      myData.setPoint = setPoint;
-      awsSendUpdateSetPoint(myData.setPoint);
-    }
-    tr_info("Temp %d, light %d%c, RelHumid %d%c\r\n", myData.tempC,
-            myData.lightLvl, 0x25, myData.relHumid, 0x25);
+      if (readThem == 2) {
+          float tempVal;
+      ds1820.startConversion();
+      if ((ds1820.read(tempVal)) == 0) {
+        myData.tempC = tempVal;
+      }
+      }
+      /* Do we need to cool(-1), heat(+1) or do nothing(0) */
+      if (myData.tempC != myData.prevTempC && readThem == 3) {
+        awsSendUpdateTemperature(myData.tempC);
+        myData.prevTempC = myData.tempC;
+        if (myData.tempC > myData.setPoint + 0.5) {
+          if (myData.controlMode != -1) {
+            myData.controlMode = -1;
+            awsSendUpdateMode(myData.controlMode);
+          }
+        } else if (myData.tempC < myData.setPoint - 0.5) {
+
+          if (myData.controlMode != 1) {
+            myData.controlMode = 1;
+            awsSendUpdateMode(myData.controlMode);
+          }
+        } else if (myData.controlMode != 0) {
+          myData.controlMode = 0;
+          awsSendUpdateMode(myData.controlMode);
+        }
+      }
+      if (myData.lightLvl != myData.prevLightlLvl && readThem == 4) {
+        awsSendUpdateLight(myData.lightLvl);
+        myData.prevLightlLvl = myData.lightLvl;
+      }
+      if (myData.relHumid != myData.prevRelHumid && readThem == 5) {
+        awsSendUpdateHumid(myData.lightLvl);
+        myData.prevRelHumid = myData.relHumid;
+      }
+      if (myData.setPoint != setPoint && readThem == 6) {
+        myData.setPoint = setPoint;
+        awsSendUpdateSetPoint(myData.setPoint);
+      }
+      tr_info("Temp %d, light %d, RelHumid %d", (int)myData.tempC,
+              (int)myData.lightLvl, (int)myData.relHumid);
+    
+    readThem = (readThem + 1) % 10;
     while (!queue.empty()) {
-      if (wait_sem.try_acquire_for(50ms)) {
-                break;
-            } // Messages can be rejected if sent too close
+//      if (wait_sem.try_acquire_for(50ms)) {
+//        break;
+//      } 
+    ThisThread::sleep_for(50ms);
+// Messages can be rejected if sent too close
 
       osEvent evt = queue.get(0);
 
@@ -372,7 +380,8 @@ int main() {
         case CMD_sendTemperature:
           doPublish = true;
           sprintf(topic, "%s/currentTemp", MBED_CONF_APP_AWS_CLIENT_IDENTIFIER);
-          sprintf(update, "%d.%d", (int)message->value,(int)((message->value)*10)%10);
+          sprintf(update, "%d.%d", (int)message->value,
+                  (int)((message->value) * 10) % 10);
 #ifdef USING_LEDKEY8
           sprintf(displayBuffer, "T%d S%d ", message->value, (int)setPoint);
 //            tr_info("%s\r\n", displayBuffer);
@@ -396,12 +405,14 @@ int main() {
         case CMD_sendSetPoint:
           doPublish = true;
           sprintf(topic, "%s/setPoint", MBED_CONF_APP_AWS_CLIENT_IDENTIFIER);
-          sprintf(update, "%d.%d", (int)message->value,(int)((message->value)*10)%10);
+          sprintf(update, "%d.%d", (int)message->value,
+                  (int)((message->value) * 10) % 10);
           break;
         case CMD_sendDelta:
           doPublish = true;
           sprintf(topic, "%s/delta", MBED_CONF_APP_AWS_CLIENT_IDENTIFIER);
-          sprintf(update, "%d.%d", (int)message->value,(int)((message->value)*10)%10);
+          sprintf(update, "%d.%d", (int)message->value,
+                  (int)((message->value) * 10) % 10);
           break;
         case CMD_sendLightLevel:
           doPublish = true;
@@ -438,7 +449,7 @@ int main() {
         publish.pTopicName = topic;
         publish.topicNameLength = strlen(topic);
 
-        tr_info("Publishing telemetry message: %s", message);
+        tr_info("Publishing telemetry message: %s : %s", topic, update);
         auto pub_status = IotMqtt_PublishSync(connection, &publish,
                                               /* flags */ 0,
                                               /* timeout ms */ MQTT_TIMEOUT_MS);
