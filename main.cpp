@@ -33,7 +33,7 @@ DigitalOut redLED(LED3);
 // debugging facilities
 #define TRACE_GROUP "Main"
 static Mutex trace_mutex;
-static float setPoint = 20.0;
+static float setPoint = 20.5;
 static bool interrupted = false;
 static void trace_mutex_lock()
 {
@@ -87,7 +87,8 @@ static void on_message_received(void * pCallbackContext, IotMqttCallbackParam_t 
     auto wait_sem = static_cast<Semaphore*>(pCallbackContext);
     char* payload = (char*)pCallbackParam->u.message.info.pPayload;
     auto payloadLen = pCallbackParam->u.message.info.payloadLength;
-//    tr_debug("from topic:%s; msg: %.*s", pCallbackParam->u.message.info.pTopicName, payloadLen, payload);
+    printf("from topic:%s; msg: %.*s\r\n", pCallbackParam->u.message.info.pTopicName, payloadLen, payload);
+//    if (strcmp())
     setPoint = std::stof(payload);
 //  if (strncmp("Warning", payload, 7) != 0) {
 //    tr_info("Temperature Set Point %.*s !", payloadLen, payload);
@@ -182,6 +183,13 @@ void awsSendUpdateHumid(int relHumidity) {
   if (message) {
     message->cmd = CMD_sendRelativeHumidity;
     message->value = relHumidity;
+    queue.put(message);
+  }
+}void awsSendUpdateIPAddress(void) {
+  msg_t *message = mpool.alloc();
+  if (message) {
+    message->cmd = CMD_sendIPAddress;
+    message->value = 0;
     queue.put(message);
   }
 }
@@ -313,14 +321,16 @@ int main()
     publish.retryMs = 1000;
 //    for (uint32_t i = 0; i < 10; i++) {
   bool doPublish = false;
+  int pubCount = 0;
   char buffer[256];
   char update[20];
   bool A_OK = true;
   int errorCount = 0;
   static thingData myData;
-
+  awsSendUpdateSetPoint(myData.setPoint);
+  awsSendUpdateMode(myData.controlMode);
+  awsSendUpdateIPAddress();
   ds1820.begin();
-  int readThem = 0;
   while (A_OK) {
     wait_sem.try_acquire_for(500ms);
 //    if (readThem == 1) {
@@ -358,20 +368,23 @@ int main()
         awsSendUpdateMode(myData.controlMode);
       }
     
-      if (myData.lightLvl != myData.prevLightlLvl ) {
+      if (abs(myData.lightLvl - myData.prevLightlLvl) > 2 ) {
         awsSendUpdateLight(myData.lightLvl);
         myData.prevLightlLvl = myData.lightLvl;
       }
-      if (myData.relHumid != myData.prevRelHumid ) {
-        awsSendUpdateHumid(myData.lightLvl);
+      if (abs(myData.relHumid - myData.prevRelHumid) >= 2 ) {
+        awsSendUpdateHumid(myData.relHumid);
         myData.prevRelHumid = myData.relHumid;
       }
       if (myData.setPoint != setPoint ) {
         myData.setPoint = setPoint;
         awsSendUpdateSetPoint(myData.setPoint);
       }
-      tr_info("Temp/setPoint %d/%d, light %d, RelHumid %d", (int)myData.tempC,
-              (int)setPoint, (int)myData.lightLvl, (int)myData.relHumid);
+      printf("Temp/setPoint %d.%d/%d.%d, %d.%d, light %d, RelHumid %d\r\n", 
+              (int)myData.tempC,(int)(myData.tempC*10)%10,
+              (int)myData.setPoint, (int)(myData.setPoint *10)%10, 
+              (int)setPoint, (int)(setPoint *10)%10, 
+              (int)myData.lightLvl, (int)myData.relHumid);
     
 //    readThem = (readThem + 1) % 10;
     while (!queue.empty()) {
@@ -437,9 +450,9 @@ int main()
         case CMD_sendMode:
           doPublish = true;
           if ((message->value) >= 1)
-            sprintf(update, "Cool");
-          else if ((message->value) <= -1)
             sprintf(update, "Heat");
+          else if ((message->value) <= -1)
+            sprintf(update, "Cool");
           else
             sprintf(update, "Off");
           sprintf(topic, "%s/controlMode", MBED_CONF_APP_AWS_CLIENT_IDENTIFIER);
@@ -449,6 +462,7 @@ int main()
         mpool.free(message);
       }
       if (doPublish) {
+          pubCount++;
         publish.pPayload = update;
         publish.payloadLength = strlen(update);
 
