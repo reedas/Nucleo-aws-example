@@ -25,6 +25,9 @@ void sensorThread(void)
   DS1820 ds1820(D8);
   AnalogIn ldr(A0);
 
+    while(!A_OK) {
+        ThisThread::sleep_for(100ms);
+    }
   awsSendUpdateSetPoint(myData.setPoint);
   displaySendUpdateSetPoint(myData.setPoint);
   awsSendUpdateMode(myData.controlMode);

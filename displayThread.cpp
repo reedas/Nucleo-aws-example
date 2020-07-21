@@ -29,86 +29,82 @@ static MemoryPool<msg_t, 32> mpool;
 
 void displaySendUpdateTemperature(float temperature)
 {
-    msg_t *message = mpool.alloc();
+    msg_t *message = mpool.try_alloc();
     if(message)
     {
         message->cmd = CMD_temperature;
         message->value = temperature;
-        queue.put(message);
+        queue.try_put(message);
     }
 }
 
 void displaySendUpdateTime()
 {
-    msg_t *message = mpool.alloc();
+    msg_t *message = mpool.try_alloc();
     if(message)
     {
         message->cmd = CMD_time;
         message->value = 0;
-        queue.put(message);
+        queue.try_put(message);
     }
 }
 
 void displaySendUpdateSetPoint(float setPoint)
 {
-    msg_t *message = mpool.alloc();
+    msg_t *message = mpool.try_alloc();
     if(message)
     {
         message->cmd = CMD_setPoint;
         message->value = setPoint;
-        queue.put(message);
+        queue.try_put(message);
     }
 }
 
 
 void displaySendUpdateMode(float mode)
 {
-    msg_t *message = mpool.alloc();
+    msg_t *message = mpool.try_alloc();
     if(message)
     {
         message->cmd = CMD_mode;
         message->value = mode;
-        queue.put(message);
+        queue.try_put(message);
     }
 }
 void displaySendUpdateHumid(int humid)
 {
-    msg_t *message = mpool.alloc();
+    msg_t *message = mpool.try_alloc();
     if(message)
     {
         message->cmd = CMD_humid;
         message->value = humid;
-        queue.put(message);
+        queue.try_put(message);
     }
 }
 void displaySendUpdateLight(int light)
 {
-    msg_t *message = mpool.alloc();
+    msg_t *message = mpool.try_alloc();
     if(message)
     {
         message->cmd = CMD_light;
         message->value = light;
-        queue.put(message);
+        queue.try_put(message);
     }
 }
 void displaySendDebug(char *text)
 {
-    msg_t *message = mpool.alloc();
+    msg_t *message = mpool.try_alloc();
     if(message)
     {
         message->cmd = CMD_Debug;
         message->value = 0;
-        queue.put(message);
+        queue.try_put(message);
         strcpy(printed, text);
     }
 }
 
 static void displayAtXY(int x, int y,char *buffer)
 {
-    #ifdef TARGET_CY8CKIT_062_WIFI_BT
-    GUI_SetTextAlign(GUI_TA_LEFT);
-    GUI_DispStringAt(buffer,(x-1)*8,(y-1)*16);
-    #endif
     // row column
     printf("\033[%d;%dH%s",y,x,buffer);
     fflush(stdout);
@@ -125,15 +121,14 @@ void displayThread()
     printf("\033[?25l"); // Turn the cursor off
     fflush(stdout);
 
-    #ifdef TARGET_CY8CKIT_062_WIFI_BT
-        GUI_Init();
-        GUI_SetColor(GUI_WHITE);
-        GUI_SetBkColor(GUI_BLACK);
-        GUI_SetFont(GUI_FONT_8X16_1);
-    #endif
-
+     while(!A_OK) {
+        ThisThread::sleep_for(100ms);
+    }
     while(A_OK)
     {
+//        msg_t *message;
+//        if (queue.try_get(&message)) { 
+     
         osEvent evt = queue.get();
         if (evt.status == osEventMessage) {
             msg_t *message = (msg_t*)evt.value.p;
@@ -159,10 +154,7 @@ void displayThread()
                 break;
                 case CMD_time:
                     time_t rawtime;
-                    struct tm * timeinfo;
                     time (&rawtime);
-                    rawtime = rawtime; 
- //                   timeinfo = localtime (&rawtime);
                     sprintf(buffer, "%.*s  ", strlen(ctime(&rawtime))-1, ctime(&rawtime));
                     displayAtXY(1, 1, buffer);
                 break;

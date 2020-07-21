@@ -30,7 +30,7 @@ DigitalOut redLED(LED3);
 static Mutex trace_mutex;
 
 float setPoint = 20.5;
-bool A_OK = true;
+bool A_OK = false;
 
 static void trace_mutex_lock() { trace_mutex.lock(); }
 static void trace_mutex_unlock() { trace_mutex.unlock(); }
@@ -59,8 +59,10 @@ static void on_message_received(void *pCallbackContext,
   char *payload = (char *)pCallbackParam->u.message.info.pPayload;
   auto payloadLen = pCallbackParam->u.message.info.payloadLength;
 
-  sprintf( buff, "from topic:%s; msg: %.*s\r\n",
-         pCallbackParam->u.message.info.pTopicName, payloadLen, payload);
+  sprintf( buff, "from topic:%.*s - msg: %.*s\r\n",
+         strlen(pCallbackParam->u.message.info.pTopicName),
+         pCallbackParam->u.message.info.pTopicName,
+         payloadLen, payload);
   displaySendDebug( buff );
 
   //    if (strcmp())
@@ -90,89 +92,91 @@ static Queue<msg_t, 16> queue;
 static MemoryPool<msg_t, 16> mpool;
 
 void awsSendUpdateTemperature(float temperature) {
-  msg_t *message = mpool.alloc();
+  msg_t *message = mpool.try_alloc();
   if (message) {
     message->cmd = CMD_sendTemperature;
     message->value = temperature;
-    queue.put(message);
+    queue.try_put(message);
   }
 }
 void awsSendAnnounce1(void) {
-  msg_t *message = mpool.alloc();
+  msg_t *message = mpool.try_alloc();
   if (message) {
     message->cmd = CMD_sendAnnounce1;
     message->value = 0;
-    queue.put(message);
+    queue.try_put(message);
   }
 }
 void awsSendAnnounce2(void) {
-  msg_t *message = mpool.alloc();
+  msg_t *message = mpool.try_alloc();
   if (message) {
     message->cmd = CMD_sendAnnounce2;
     message->value = 0;
-    queue.put(message);
+    queue.try_put(message);
   }
 }
 void awsSendIPAddress(void) {
-  msg_t *message = mpool.alloc();
+  msg_t *message = mpool.try_alloc();
   if (message) {
     message->cmd = CMD_sendIPAddress;
     message->value = 0;
-    queue.put(message);
+    queue.try_put(message);
   }
 }
 void awsSendUpdateSetPoint(float setPoint) {
-  msg_t *message = mpool.alloc();
+  msg_t *message = mpool.try_alloc();
   if (message) {
     message->cmd = CMD_sendSetPoint;
     message->value = setPoint;
-    queue.put(message);
+    queue.try_put(message);
   }
 }
 void awsSendUpdateDelta(float delta) {
-  msg_t *message = mpool.alloc();
+  msg_t *message = mpool.try_alloc();
   if (message) {
     message->cmd = CMD_sendDelta;
     message->value = delta;
-    queue.put(message);
+    queue.try_put(message);
   }
 }
 void awsSendUpdateMode(int controlMode) {
-  msg_t *message = mpool.alloc();
+  msg_t *message = mpool.try_alloc();
   if (message) {
     message->cmd = CMD_sendMode;
     message->value = controlMode;
-    queue.put(message);
+    queue.try_put(message);
   }
 }
 void awsSendUpdateLight(int lighLlevel) {
-  msg_t *message = mpool.alloc();
+  msg_t *message = mpool.try_alloc();
   if (message) {
     message->cmd = CMD_sendLightLevel;
     message->value = lighLlevel;
-    queue.put(message);
+    queue.try_put(message);
   }
 }
 void awsSendUpdateHumid(int relHumidity) {
-  msg_t *message = mpool.alloc();
+  msg_t *message = mpool.try_alloc();
   if (message) {
     message->cmd = CMD_sendRelativeHumidity;
     message->value = relHumidity;
-    queue.put(message);
+    queue.try_put(message);
   }
 }
 void awsSendUpdateIPAddress(void) {
-  msg_t *message = mpool.alloc();
+  msg_t *message = mpool.try_alloc();
   if (message) {
     message->cmd = CMD_sendIPAddress;
     message->value = 0;
-    queue.put(message);
+    queue.try_put(message);
   }
 }
 
 int main() {
   
-  printf("Started System\r\n");
+   // Clear Screen, go Home System Starting....
+  printf("\033[2J\033[HStarting System...\r\n");
+  blinkThreadHandle.start(blinkThread);
 
   int pubCount = 0;
 
@@ -190,8 +194,8 @@ int main() {
           eth.get_ip_address() ? eth.get_ip_address() : "None");
 
   // Set the correct time
-  time_t now = ntp.get_timestamp(200000) ;
-  set_time(now + 3600);
+  time_t now = ntp.get_timestamp(200000) + 3600;
+  set_time(now);
   char timeStr[20];
   //strftime(timeStr, 20, "%I:%M%p", now);
   printf("Connected to Network: IP is: %s at %s\r\n", eth.get_ip_address(), ctime(&now));
@@ -260,12 +264,13 @@ int main() {
     tr_error("AWS Subscribe failed with : %u", sub_status);
   }
   printf("Subscribed\r\n");
-  printf("Starting Sensor readings\r\n");
+  //printf("Starting Sensor readings\r\n");
 
-  sensorThreadHandle.start(sensorThread);
+  A_OK = true;
   displayThreadHandle.start(displayThread);
-  blinkThreadHandle.start(blinkThread);
-
+  sensorThreadHandle.start(sensorThread);
+  
+  displaySendDebug((char *)"Starting Sensor readings");
 
   /* Set the members of the publish info. */
   IotMqttPublishInfo_t publish = IOT_MQTT_PUBLISH_INFO_INITIALIZER;
@@ -280,15 +285,18 @@ int main() {
     wait_sem.try_acquire_for(50ms);
      while (!queue.empty()) {
       ThisThread::sleep_for(50ms);
-      // Messages can be rejected if sent too close
+      // Messages can be rejected on AWS free tier if sent too close together
 
       osEvent evt = queue.get(0);
       char update[20];
-      if (evt.status == osEventMessage) {
+       if (evt.status == osEventMessage) {
         
         msg_t *message = (msg_t *)evt.value.p;
 
-        switch (message->cmd) {
+      
+/*      msg_t *message;
+      if (queue.try_get(&message)) { */
+      switch (message->cmd) {
         case CMD_sendTemperature:
           doPublish = true;
           sprintf(topic, "%s/currentTemp", MBED_CONF_APP_AWS_CLIENT_IDENTIFIER);
@@ -379,12 +387,13 @@ int main() {
 
   IotMqtt_Cleanup();
   IotSdk_Cleanup();
-  printf("Done and shut down on %s... Published %d Messages\r\n", ctime(&now), pubCount);
+  time(&now);
+  printf("\033[2J\033[H...Done and shut down on %s... Published %d Messages\r\n", ctime(&now), pubCount);
   tr_info("Done");
 
   while (true) {
     ThisThread::sleep_for(1s);
-    blueLED = !blueLED;
+    redLED = !redLED;
   }
   return 0;
 }
