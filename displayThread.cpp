@@ -1,6 +1,7 @@
 #include "mbed.h"
 #include "displayThread.h"
 #include "awsPublish.h"
+#include "ctime"
 
 extern bool A_OK;
 char printed[80];
@@ -139,21 +140,21 @@ void displayThread()
             switch(message->cmd)
             {
                 case CMD_temperature:
-                    sprintf(buffer,"Temperature = %d.%dC",
+                    sprintf(buffer,"Temperature = %d.%dC  ",
                            (int)message->value, (int)(message->value*10)%10);
                     displayAtXY(1, 2, buffer);
                 break;
                 case CMD_setPoint:
-                    sprintf(buffer,"Set Point = %d.%dC",
+                    sprintf(buffer,"Set Point = %d.%dC  ",
                            (int)message->value, (int)(message->value*10)%10);
                     displayAtXY(1, 3, buffer);
                 break;
                 case CMD_light:
-                    sprintf(buffer,"Light Level = %d%c",(int)message->value, 0x25);
+                    sprintf(buffer,"Light Level = %d%c  ",(int)message->value, 0x25);
                     displayAtXY(1, 5, buffer);
                 break;
                 case CMD_humid:
-                    sprintf(buffer,"Rel Humidity =  %d%c",(int)message->value, 0x25);
+                    sprintf(buffer,"Rel Humidity =  %d%c  ",(int)message->value, 0x25);
                     displayAtXY(1, 6, buffer);
                 break;
                 case CMD_time:
@@ -161,8 +162,8 @@ void displayThread()
                     struct tm * timeinfo;
                     time (&rawtime);
                     rawtime = rawtime; 
-                    timeinfo = localtime (&rawtime);
-                    strftime (buffer,sizeof(buffer),"%r",timeinfo);
+ //                   timeinfo = localtime (&rawtime);
+                    sprintf(buffer, "%.*s  ", strlen(ctime(&rawtime))-1, ctime(&rawtime));
                     displayAtXY(1, 1, buffer);
                 break;
                 case CMD_mode:

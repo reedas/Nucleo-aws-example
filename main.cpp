@@ -59,8 +59,8 @@ static void on_message_received(void *pCallbackContext,
   char *payload = (char *)pCallbackParam->u.message.info.pPayload;
   auto payloadLen = pCallbackParam->u.message.info.payloadLength;
 
-  sprintf( buff, "from topic:%s; msg: %s\r\n",
-         pCallbackParam->u.message.info.pTopicName, payload);
+  sprintf( buff, "from topic:%s; msg: %.*s\r\n",
+         pCallbackParam->u.message.info.pTopicName, payloadLen, payload);
   displaySendDebug( buff );
 
   //    if (strcmp())
@@ -190,8 +190,8 @@ int main() {
           eth.get_ip_address() ? eth.get_ip_address() : "None");
 
   // Set the correct time
-  time_t now = ntp.get_timestamp() + 3600;
-  set_time(now);
+  time_t now = ntp.get_timestamp(200000) ;
+  set_time(now + 3600);
   char timeStr[20];
   //strftime(timeStr, 20, "%I:%M%p", now);
   printf("Connected to Network: IP is: %s at %s\r\n", eth.get_ip_address(), ctime(&now));

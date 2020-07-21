@@ -26,11 +26,15 @@ void sensorThread(void)
   AnalogIn ldr(A0);
 
   awsSendUpdateSetPoint(myData.setPoint);
+  displaySendUpdateSetPoint(myData.setPoint);
   awsSendUpdateMode(myData.controlMode);
+  displaySendUpdateMode(myData.controlMode);
   awsSendUpdateIPAddress();
 
-  ds1820.begin();
-
+  for (int i=0; i < 5; i++) {
+    if (ds1820.begin()) break;
+    ThisThread::sleep_for(10ms);
+  }
   ThisThread::sleep_for(10ms);
 
   while (A_OK) { //  float currentTemp, currentSetPt, currentLightLevel,
