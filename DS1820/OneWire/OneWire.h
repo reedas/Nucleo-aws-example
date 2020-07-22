@@ -71,7 +71,8 @@ void init_soft_delay( void ) {
 
 class OneWire : public DigitalInOut
 {
-    Timer timer;
+    int _sample_point_us;
+    int _out_to_in_transition_us;
 
 #if ONEWIRE_SEARCH
     // global search state
@@ -82,7 +83,7 @@ class OneWire : public DigitalInOut
 #endif
 
 public:
-    OneWire(PinName pin);
+    OneWire(PinName pin, int sample_point_us = 13);
 
     // Perform a 1-Wire reset cycle. Returns 1 if a device responds
     // with a presence pulse.  Returns 0 if there is no device or the

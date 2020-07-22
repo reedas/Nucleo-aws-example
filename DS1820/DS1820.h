@@ -118,7 +118,7 @@ class   DS1820
     static  uint8_t lastAddr[8];
     
 public:
-    DS1820(PinName pin);
+    DS1820(PinName pin, int sample_point_us = 13);
 //    DS1820(char model, PinName pin);
     DS1820(OneWire* wire);
     bool   begin(void);

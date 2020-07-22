@@ -124,10 +124,25 @@ sample code bearing this copyright.
  * @param
  * @retval
  */
-OneWire::OneWire(PinName pin) :
-    DigitalInOut(pin)
+OneWire::OneWire(PinName pin, int sample_point_us /* = 13 */) :
+    DigitalInOut(pin),
+    _sample_point_us(sample_point_us)
 {
+    Timer timer;
+
     MODE(); // set mode to either OpenDrain for STM or PullUp for others
+
+    // Measure bus transition time from ouput to input
+    timer.reset();
+    OUTPUT();       // set as output
+    WRITE(0);       // pull the line down
+    timer.start();
+    INPUT();        // set as input (and release the bus)
+    timer.stop();
+    _out_to_in_transition_us = timer.read_us();
+
+    MBED_ASSERT(_out_to_in_transition_us < _sample_point_us);
+
     INIT_WAIT;
 #if ONEWIRE_SEARCH
     reset_search();
@@ -187,22 +202,14 @@ void OneWire::write_bit(uint8_t v)
  */
 uint8_t OneWire::read_bit(void)
 {
-    const int SAMPLE_POINT = 10;
     uint8_t r;
-    int     t;
 
     OUTPUT();
     WRITE(0);
-    timer.start();
     INPUT();
-    t = timer.read_us();
-    if (t < SAMPLE_POINT)
-        WAIT_US(SAMPLE_POINT - t);
+    wait_us(_sample_point_us - _out_to_in_transition_us);    // wait till sample point
     r = READ();
-    timer.stop();
-    timer.reset();
     WAIT_US(55);
-    //printf("t = %d\r\n", t);
     return r;
 }
 
