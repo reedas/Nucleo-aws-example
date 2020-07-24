@@ -2,9 +2,12 @@
 #include "displayThread.h"
 #include "awsPublish.h"
 #include "ctime"
+#define LCD_PRESENT
+#ifdef LCD_PRESENT
 #include "i2cLCD.h"
-
+#endif
 //I2C i2c(I2C_SDA, I2C_SCL);
+i2cLCD lcd(0x7e, 16, 2);
 
 //#define lcdAddress 0x7e
 extern bool A_OK;
@@ -112,8 +115,6 @@ static void displayAtXY(int x, int y,char *buffer)
     // row column
     printf("\033[%d;%dH%s",y,x,buffer);
     fflush(stdout);
-    lcd_locate( x-1, y-1);
-    lcd_send_string( buffer );
 }
 
 
@@ -123,13 +124,15 @@ void displayThread()
 {
     char buffer[128];
 
-    lcd_begin();
-    lcd_clear();
-//    ThisThread::sleep_for(100ms);
-//    lcd_noCursor();
-//    ThisThread::sleep_for(100ms);
-    lcd_send_string((char *)"Starting");
+    lcd.begin();
+    lcd.clear();
 
+    lcd.noCursor();
+//    ThisThread::sleep_for(100ms);
+//    lcd.noCursor();
+//    ThisThread::sleep_for(100ms);
+    lcd.printString((char *)"Starting");
+    lcd.noBlink();
 
     while(!A_OK) {
         ThisThread::sleep_for(100ms);
@@ -155,25 +158,56 @@ void displayThread()
                     sprintf(buffer,"Temperature = %d.%dC  ",
                            (int)message->value, (int)(message->value*10)%10);
                     displayAtXY(1, 2, buffer);
+#ifdef LCD_PRESENT
+                    sprintf(buffer,"%d",(int)message->value);
+                    lcd.locate( 3,1 );
+                    lcd.printChar('T');
+                    lcd.printString( buffer );
+
+#endif
+
                 break;
                 case CMD_setPoint:
                     sprintf(buffer,"Set Point = %d.%dC  ",
                            (int)message->value, (int)(message->value*10)%10);
                     displayAtXY(1, 3, buffer);
+#ifdef LCD_PRESENT
+                    lcd.locate( 0, 1);
+                    lcd.printChar('S');
+                    sprintf(buffer,"%d",(int)message->value);
+                    lcd.printString( buffer );
+#endif
                 break;
                 case CMD_light:
                     sprintf(buffer,"Light Level = %d%c  ",(int)message->value, 0x25);
                     displayAtXY(1, 5, buffer);
+#ifdef LCD_PRESENT
+                    sprintf(buffer,"L%d%c",(int)message->value, 0x25);
+                    lcd.locate( 7,1 );
+                    lcd.printString( buffer );
+#endif
                 break;
                 case CMD_humid:
                     sprintf(buffer,"Rel Humidity =  %d%c  ",(int)message->value, 0x25);
                     displayAtXY(1, 6, buffer);
+#ifdef LCD_PRESENT
+                    sprintf(buffer,"RH%d%c",(int)message->value, 0x25);
+                    lcd.locate( 11,1 );
+                    lcd.printString( buffer );
+#endif
                 break;
                 case CMD_time:
                     time_t rawtime;
+                    struct tm *timeinfo;
                     time (&rawtime);
+                    timeinfo = localtime(&rawtime);
                     sprintf(buffer, "%.*s  ", strlen(ctime(&rawtime))-1, ctime(&rawtime));
                     displayAtXY(1, 1, buffer);
+#ifdef LCD_PRESENT
+                    lcd.locate( 0, 0 );
+                    strftime(buffer, 9, "%H:%M:%S", timeinfo);
+                    lcd.printString( buffer );
+#endif
                 break;
                 case CMD_mode:
                     if(message->value == 0.0)
@@ -183,7 +217,12 @@ void displayThread()
                     else
                         sprintf(buffer,"Mode = Heat");
                     displayAtXY(1, 4, buffer);
-                break;
+ #ifdef LCD_PRESENT
+                    lcd.locate(10,0);
+                    lcd.printString( (char *)"M=" );
+                    lcd.printString( (char *) (buffer+7));
+#endif
+               break;
                 case CMD_Debug:
                     displayAtXY(1, 8, printed);
                 break;
@@ -193,8 +232,8 @@ void displayThread()
 
         }
     }
-    lcd_locate(0,0);
-    lcd_send_string((char *)"Shutting Down     ");
+    lcd.locate(0,0);
+    lcd.printString((char *)"Shutting Down     ");
     while (1) {
         ThisThread::sleep_for(1000ms);
     }
