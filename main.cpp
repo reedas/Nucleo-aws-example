@@ -177,6 +177,7 @@ int main() {
    // Clear Screen, go Home System Starting....
   printf("\033[2J\033[HStarting System...\r\n");
   blinkThreadHandle.start(blinkThread);
+  displayThreadHandle.start(displayThread);
 
   int pubCount = 0;
 
@@ -267,7 +268,6 @@ int main() {
   //printf("Starting Sensor readings\r\n");
 
   A_OK = true;
-  displayThreadHandle.start(displayThread);
   sensorThreadHandle.start(sensorThread);
   
   displaySendDebug((char *)"Starting Sensor readings");

@@ -103,4 +103,7 @@ void sensorThread(void)
     ThisThread::sleep_for(1000ms);
   }
   printf("Sensors turned Off.....\r\n");
+  while(1) {
+      ThisThread::sleep_for(1000ms);
+  }
 }

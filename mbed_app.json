@@ -9,7 +9,7 @@
             "value": "\"sdkTest/sub\""
         },
         "aws-client-identifier": {
-            "help": "uniq id for this thing",
+            "help": "unique id for this thing",
             "value": "\"AwsIoT_AR3\""
         }
     },
