@@ -8,4 +8,16 @@
 #include "DS1820.h"
 #include "Dht11.h"
 
+  struct thingData {
+
+    float tempC;
+    float prevTempC;
+    int lightLvl;
+    int prevLightlLvl;
+    int relHumid;
+    int prevRelHumid;
+    float setPoint;
+    int controlMode;
+  };
+
 void sensorThread(void);

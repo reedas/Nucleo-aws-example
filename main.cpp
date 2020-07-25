@@ -6,7 +6,6 @@
 #include "mbedtls/debug.h"
 #include "ctime"
 #include "awsPublish.h"
-#include "sensorThread.h"
 #include "displayThread.h"
 #include "blinkThread.h"
 #include "TextLCD.h"
@@ -30,6 +29,9 @@ Thread blinkThreadHandle;
 DigitalOut blueLED(LED2);
 DigitalOut greenLED(LED1);
 DigitalOut redLED(LED3);
+
+struct thingData pubData;
+
 // debugging facilities
 #define TRACE_GROUP "Main"
 static Mutex trace_mutex;
@@ -88,6 +90,7 @@ typedef enum {
   CMD_sendDelta,
   CMD_sendAnnounce1,
   CMD_sendAnnounce2,
+  CMD_sendShadow,
 } command_t;
 typedef struct {
   command_t cmd;
@@ -176,6 +179,15 @@ void awsSendUpdateIPAddress(void) {
     queue.try_put(message);
   }
 }
+void awsSendUpdateShadow(thingData myData) {
+  pubData = myData;
+  msg_t *message = mpool.try_alloc();
+  if (message) {
+    message->cmd = CMD_sendShadow;
+    message->value = 0;
+    queue.try_put(message);
+  }
+}
 
 int main() {
   
@@ -249,7 +261,7 @@ int main() {
 
   // - Subscribe to topic of interest (setPoint)
   /* Set the members of the subscription. */
-  static char topic[50]; // MBED_CONF_APP_AWS_MQTT_TOPIC;
+  static char topic[80]; // MBED_CONF_APP_AWS_MQTT_TOPIC;
   Semaphore wait_sem{/* count */ 0, /* max_count */ 1};
   sprintf(topic, "%s/setPoint", MBED_CONF_APP_AWS_CLIENT_IDENTIFIER);
 
@@ -293,7 +305,7 @@ int main() {
       // Messages can be rejected on AWS free tier if sent too close together
 
       osEvent evt = queue.get(0);
-      char update[20];
+      char update[200];
        if (evt.status == osEventMessage) {
         
         msg_t *message = (msg_t *)evt.value.p;
@@ -325,9 +337,9 @@ int main() {
           break;
         case CMD_sendSetPoint:
           doPublish = true;
-          sprintf(topic, "%s/setPoint", MBED_CONF_APP_AWS_CLIENT_IDENTIFIER);
-          sprintf(update, "%d.%d", (int)message->value,
-                  (int)((message->value) * 10) % 10);
+          sprintf(topic, "%s", MBED_CONF_APP_AWS_MQTT_TOPIC);
+//          sprintf(topic, "%s/setPoint", MBED_CONF_APP_AWS_CLIENT_IDENTIFIER);
+          sprintf(update, "{\"state\": {\"desired\": {\"setPoint\":\"%2.1f\"}}}", message->value);
           break;
         case CMD_sendDelta:
           doPublish = true;
@@ -356,6 +368,19 @@ int main() {
           sprintf(topic, "%s/controlMode", MBED_CONF_APP_AWS_CLIENT_IDENTIFIER);
 
           break;
+        case CMD_sendShadow:
+          doPublish = true;
+          char mode[5];
+          if (pubData.controlMode >= 1)
+            sprintf(mode, "Heat");
+          else if (pubData.controlMode <= -1)
+            sprintf(mode, "Cool");
+          else
+            sprintf(mode, "Off");
+         
+          sprintf(update, "{\"state\": {\"reported\": {\"temperature\": \"%2.1f\", \"humidity\": \"%d%c\", \"lightLevel\": \"%d%c\", \"controlMode\": \"%s\", \"IPAddress\" : \"%s\"}}}", 
+                           pubData.tempC, pubData.relHumid, 0x25, pubData.lightLvl, 0x25, mode, eth.get_ip_address()  );
+          sprintf(topic, "%s", MBED_CONF_APP_AWS_MQTT_TOPIC);
         }
         mpool.free(message);
       }

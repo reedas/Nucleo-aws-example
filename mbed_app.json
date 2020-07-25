@@ -5,8 +5,8 @@
             "value": "\"a33c7qbzm0wymk-ats.iot.us-west-2.amazonaws.com\""
         },
         "aws-mqtt-topic": {
-            "help": "Topic to subscribe & publish to",
-            "value": "\"sdkTest/sub\""
+            "help": "Topic to publish shadow to",
+            "value": "\"$aws/things/City_AR_Thing3/shadow/update\""
         },
         "aws-client-identifier": {
             "help": "unique id for this thing",
