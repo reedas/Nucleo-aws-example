@@ -1,6 +1,9 @@
 #ifndef DISPLAY_THREAD_H
 #define DISPLAY_THREAD_H
 
+#define OLED_PRESENT
+#define LCD_PRESENT
+
 void displayThread();
 
 

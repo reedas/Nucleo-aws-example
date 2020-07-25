@@ -9,6 +9,11 @@
 #include "sensorThread.h"
 #include "displayThread.h"
 #include "blinkThread.h"
+#include "TextLCD.h"
+#include "Adafruit_SSD1306.h"
+extern  TextLCD_I2C lcd;
+extern  Adafruit_SSD1306_I2c gOled2;
+
 #include <string>
 extern "C" {
 // sdk initialization
@@ -389,7 +394,18 @@ int main() {
   IotSdk_Cleanup();
   time(&now);
   printf("\033[2J\033[H...Done and shut down on %s... Published %d Messages\r\n", ctime(&now), pubCount);
+#ifdef LCD_PRESENT
+  lcd.cls();
+  lcd.printf("Shutting Down");
+#endif
+#ifdef OLED_PRESENT
+  gOled2.clearDisplay();
+  gOled2.setTextCursor(0, 0);
+  gOled2.printf("Shutting Down\r\n");
+  gOled2.display();
+#endif
   tr_info("Done");
+  fflush(stdout);
 
   while (true) {
     ThisThread::sleep_for(1s);

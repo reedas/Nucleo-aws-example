@@ -2,14 +2,21 @@
 #include "displayThread.h"
 #include "awsPublish.h"
 #include "ctime"
-#define LCD_PRESENT
-#ifdef LCD_PRESENT
-#include "i2cLCD.h"
-#endif
-//I2C i2c(I2C_SDA, I2C_SCL);
-i2cLCD lcd(0x7e, 16, 2);
+I2C i2c_lcd(I2C_SDA, I2C_SCL); // SDA, SCL
 
-//#define lcdAddress 0x7e
+#ifdef LCD_PRESENT
+#include "TextLCD.h"
+TextLCD_I2C lcd(&i2c_lcd, 0x7e, TextLCD::LCD16x2 /*, TextLCD::WS0010*/);  
+#endif
+
+#ifdef OLED_PRESENT
+#include "Adafruit_SSD1306.h"
+Adafruit_SSD1306_I2c gOled2(i2c_lcd, D10, 0x78, 64, 128);
+#endif
+
+
+
+
 extern bool A_OK;
 char printed[80];
 
@@ -115,6 +122,11 @@ static void displayAtXY(int x, int y,char *buffer)
     // row column
     printf("\033[%d;%dH%s",y,x,buffer);
     fflush(stdout);
+#ifdef OLED_PRESENT
+    gOled2.setTextCursor(0, (y-1)<<3);
+    gOled2.printf("%s", buffer);
+    gOled2.display();
+#endif
 }
 
 
@@ -124,16 +136,26 @@ void displayThread()
 {
     char buffer[128];
 
-    lcd.begin();
-    lcd.clear();
+#ifdef LCD_PRESENT
+    lcd.setBacklight(TextLCD::LightOn);
+    lcd.cls();
 
-    lcd.noCursor();
+    lcd.setCursor(TextLCD::CurOff_BlkOff);
 //    ThisThread::sleep_for(100ms);
 //    lcd.noCursor();
 //    ThisThread::sleep_for(100ms);
-    lcd.printString((char *)"Starting");
-    lcd.noBlink();
+    lcd.printf("Starting");
+#endif
+#ifdef OLED_PRESENT
+    gOled2.clearDisplay();
+    gOled2.setTextCursor(0, 0);
+    gOled2.printf("Starting");
+    gOled2.display();
 
+    gOled2.clearDisplay();
+    gOled2.setTextCursor(0, 0);
+    gOled2.setTextWrap(false);
+#endif
     while(!A_OK) {
         ThisThread::sleep_for(100ms);
     }
@@ -159,10 +181,9 @@ void displayThread()
                            (int)message->value, (int)(message->value*10)%10);
                     displayAtXY(1, 2, buffer);
 #ifdef LCD_PRESENT
-                    sprintf(buffer,"%d",(int)message->value);
                     lcd.locate( 3,1 );
-                    lcd.printChar('T');
-                    lcd.printString( buffer );
+                    lcd.putc('T');
+                    lcd.printf( "%d",(int)message->value );
 
 #endif
 
@@ -173,27 +194,23 @@ void displayThread()
                     displayAtXY(1, 3, buffer);
 #ifdef LCD_PRESENT
                     lcd.locate( 0, 1);
-                    lcd.printChar('S');
-                    sprintf(buffer,"%d",(int)message->value);
-                    lcd.printString( buffer );
+                   lcd.printf("S%d",(int)message->value );
 #endif
                 break;
                 case CMD_light:
                     sprintf(buffer,"Light Level = %d%c  ",(int)message->value, 0x25);
                     displayAtXY(1, 5, buffer);
 #ifdef LCD_PRESENT
-                    sprintf(buffer,"L%d%c",(int)message->value, 0x25);
                     lcd.locate( 7,1 );
-                    lcd.printString( buffer );
+                    lcd.printf( "L%d%c",(int)message->value, 0x25 );
 #endif
                 break;
                 case CMD_humid:
                     sprintf(buffer,"Rel Humidity =  %d%c  ",(int)message->value, 0x25);
                     displayAtXY(1, 6, buffer);
 #ifdef LCD_PRESENT
-                    sprintf(buffer,"RH%d%c",(int)message->value, 0x25);
                     lcd.locate( 11,1 );
-                    lcd.printString( buffer );
+                    lcd.printf( "RH%d%c",(int)message->value, 0x25 );
 #endif
                 break;
                 case CMD_time:
@@ -206,7 +223,7 @@ void displayThread()
 #ifdef LCD_PRESENT
                     lcd.locate( 0, 0 );
                     strftime(buffer, 9, "%H:%M:%S", timeinfo);
-                    lcd.printString( buffer );
+                    lcd.printf( "%s", buffer );
 #endif
                 break;
                 case CMD_mode:
@@ -219,12 +236,12 @@ void displayThread()
                     displayAtXY(1, 4, buffer);
  #ifdef LCD_PRESENT
                     lcd.locate(10,0);
-                    lcd.printString( (char *)"M=" );
-                    lcd.printString( (char *) (buffer+7));
+                    lcd.printf( "M=" );
+                    lcd.printf( "%s", (buffer+7));
 #endif
                break;
                 case CMD_Debug:
-                    displayAtXY(1, 8, printed);
+                    displayAtXY(1, 7, printed);
                 break;
 
             }
@@ -232,8 +249,7 @@ void displayThread()
 
         }
     }
-    lcd.locate(0,0);
-    lcd.printString((char *)"Shutting Down     ");
+
     while (1) {
         ThisThread::sleep_for(1000ms);
     }
