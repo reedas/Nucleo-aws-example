@@ -317,8 +317,7 @@ int main() {
         case CMD_sendTemperature:
           doPublish = true;
           sprintf(topic, "%s/currentTemp", MBED_CONF_APP_AWS_CLIENT_IDENTIFIER);
-          sprintf(update, "%d.%d", (int)message->value,
-                  (int)((message->value) * 10) % 10);
+          sprintf(update, "%2.1f", message->value );
           break;
         case CMD_sendIPAddress:
           doPublish = true;
@@ -344,8 +343,7 @@ int main() {
         case CMD_sendDelta:
           doPublish = true;
           sprintf(topic, "%s/delta", MBED_CONF_APP_AWS_CLIENT_IDENTIFIER);
-          sprintf(update, "%d.%d", (int)message->value,
-                  (int)((message->value) * 10) % 10);
+          sprintf(update, "%2.1f", message->value);
           break;
         case CMD_sendLightLevel:
           doPublish = true;

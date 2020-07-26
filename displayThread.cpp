@@ -177,8 +177,7 @@ void displayThread()
             switch(message->cmd)
             {
                 case CMD_temperature:
-                    sprintf(buffer,"Temperature = %d.%dC  ",
-                           (int)message->value, (int)(message->value*10)%10);
+                    sprintf(buffer,"Temperature = %2.1fC  ", message->value);
                     displayAtXY(1, 2, buffer);
 #ifdef LCD_PRESENT
                     lcd.locate( 3,1 );
@@ -189,8 +188,7 @@ void displayThread()
 
                 break;
                 case CMD_setPoint:
-                    sprintf(buffer,"Set Point = %d.%dC  ",
-                           (int)message->value, (int)(message->value*10)%10);
+                    sprintf(buffer,"Set Point = %2.1fC  ", message->value);
                     displayAtXY(1, 3, buffer);
 #ifdef LCD_PRESENT
                     lcd.locate( 0, 1);

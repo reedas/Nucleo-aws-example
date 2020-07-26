@@ -91,7 +91,6 @@ void sensorThread(void)
       displaySendUpdateSetPoint(myData.setPoint);
       updateRequired = true;
     }
- 
     ThisThread::sleep_for(1000ms);
     if (updateRequired) {
         awsSendUpdateShadow( myData );
