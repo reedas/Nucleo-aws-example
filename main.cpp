@@ -317,7 +317,7 @@ int main() {
         case CMD_sendTemperature:
           doPublish = true;
           sprintf(topic, "%s/currentTemp", MBED_CONF_APP_AWS_CLIENT_IDENTIFIER);
-          sprintf(update, "%2.1f", message->value );
+          sprintf(update, "%2.1f", message->value) ;
           break;
         case CMD_sendIPAddress:
           doPublish = true;
@@ -338,7 +338,7 @@ int main() {
           doPublish = true;
           sprintf(topic, "%s", MBED_CONF_APP_AWS_MQTT_TOPIC);
 //          sprintf(topic, "%s/setPoint", MBED_CONF_APP_AWS_CLIENT_IDENTIFIER);
-          sprintf(update, "{\"state\": {\"desired\": {\"setPoint\":\"%2.1f\"}}}", message->value);
+          sprintf(update, "{\"state\": {\"desired\": {\"temperature\":\"%2.1f\"}}}", message->value);
           break;
         case CMD_sendDelta:
           doPublish = true;

@@ -51,14 +51,14 @@ void sensorThread(void)
       myData.prevTempC = myData.tempC;
       updateRequired = true;
     }
-    if (myData.tempC > myData.setPoint + 0.5) {
+    if (myData.tempC > myData.setPoint + 1) {
       if (myData.controlMode != -1) {
         myData.controlMode = -1;
         awsSendUpdateMode(myData.controlMode);
         displaySendUpdateMode(myData.controlMode);
         updateRequired = true;
       }
-    } else if (myData.tempC < myData.setPoint - 0.5) {
+    } else if (myData.tempC < myData.setPoint - 1) {
 
       if (myData.controlMode != 1) {
         myData.controlMode = 1;

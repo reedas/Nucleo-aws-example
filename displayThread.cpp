@@ -182,7 +182,7 @@ void displayThread()
 #ifdef LCD_PRESENT
                     lcd.locate( 3,1 );
                     lcd.putc('T');
-                    lcd.printf( "%d",(int)message->value );
+                    lcd.printf( "%d",(int)round(message->value ));
 
 #endif
 
@@ -192,7 +192,7 @@ void displayThread()
                     displayAtXY(1, 3, buffer);
 #ifdef LCD_PRESENT
                     lcd.locate( 0, 1);
-                   lcd.printf("S%d",(int)message->value );
+                   lcd.printf("S%d",(int)round(message->value ));
 #endif
                 break;
                 case CMD_light:
