@@ -3,7 +3,7 @@
 #include "displayThread.h"
 
 
-static DigitalOut led1(LED1);
+extern DigitalOut greenLED;
 extern bool A_OK;
 
 void blinkThread()
@@ -11,13 +11,13 @@ void blinkThread()
     //  Await start signal  
     while(!A_OK) {
         ThisThread::sleep_for(100ms);
-        led1 = !led1;
+        greenLED = !greenLED;
     }
 
     // Started
     while (A_OK) 
     {
-        led1 = !led1;
+        greenLED = !greenLED;
         displaySendUpdateTime();
 
         ThisThread::sleep_for(500ms);
