@@ -6,7 +6,8 @@ I2C i2c_lcd(I2C_SDA, I2C_SCL); // SDA, SCL
 
 #ifdef LCD_PRESENT
 #include "TextLCD.h"
-TextLCD_I2C lcd(&i2c_lcd, 0x7e, TextLCD::LCD16x2 /*, TextLCD::WS0010*/);  
+//TextLCD_I2C lcd(&i2c_lcd, 0x7e, TextLCD::LCD16x2 /*, TextLCD::WS0010*/);  //0x3f
+TextLCD_I2C lcd(&i2c_lcd, 0x4e, TextLCD::LCD16x2 /*, TextLCD::WS0010*/);  //0x27  
 #endif
 
 #ifdef OLED_PRESENT

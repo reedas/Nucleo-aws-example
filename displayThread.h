@@ -1,9 +1,12 @@
 #ifndef DISPLAY_THREAD_H
 #define DISPLAY_THREAD_H
 
-#define OLED_PRESENT
+//#define OLED_PRESENT
+#undef OLED_PRESENT
 #define LCD_PRESENT
-
+#ifdef TARGET_Cypress
+#define D10 P10_7
+#endif
 void displayThread();
 
 

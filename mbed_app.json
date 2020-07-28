@@ -34,6 +34,18 @@
             "nsapi.default-wifi-security": "WPA_WPA2",
             "nsapi.default-wifi-ssid": "\"SSID\"",
             "nsapi.default-wifi-password": "\"PASSWORD\""
+        },
+        "CY8CPROTO_062_4343W": {
+            "target.network-default-interface-type": "WIFI",
+            "nsapi.default-wifi-security": "WPA_WPA2",
+            "nsapi.default-wifi-ssid": "\"brackenhillc\"",
+            "nsapi.default-wifi-password": "\"1broches\""
+        },
+        "CY8CKIT_062_WIFI_BT": {
+            "target.network-default-interface-type": "WIFI",
+            "nsapi.default-wifi-security": "WPA_WPA2",
+            "nsapi.default-wifi-ssid": "\"brackenhillc\"",
+            "nsapi.default-wifi-password": "\"1broches\""
         }
     }
 }

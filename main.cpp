@@ -1,4 +1,4 @@
-#include "EthernetInterface.h"
+//#include "EthernetInterface.h"
 #include "NTPClient.h"
 #include "aws_credentials.h"
 #include "mbed.h"
@@ -26,10 +26,15 @@ Thread displayThreadHandle;
 Thread sensorThreadHandle;
 Thread blinkThreadHandle;
 
+#ifdef TARGET_CY8CPROTO_062_4343W
+DigitalOut greenLED(LED1);
+DigitalOut blueLED(NC);
+DigitalOut redLED(NC);
+#else
 DigitalOut blueLED(LED2);
 DigitalOut greenLED(LED1);
 DigitalOut redLED(LED3);
-
+#endif
 struct thingData pubData;
 
 // debugging facilities
@@ -52,10 +57,11 @@ static volatile bool buttonPress = false;
 /*
  * Callback function called when the button1 is clicked.
  */
-void btn1_rise_handler() { buttonPress = true; }
+void buttonPressHandler() { buttonPress = true; }
 
-EthernetInterface net;
-NTPClient ntp(&net);
+auto eth = NetworkInterface::get_default_instance();
+
+NTPClient ntp(eth);
 #define MQTT_TIMEOUT_MS 15000
 char buff[80];
 // subscription event handler
@@ -205,21 +211,41 @@ int main() {
       trace_mutex_unlock); // only if thread safety is needed
   mbed_trace_init();
 
-  net.connect();
-  SocketAddress eth;
-  net.get_ip_address(&eth);
+    tr_info("Connecting to the network...");
+   if (eth == NULL) {
+        tr_error("No Network interface found.");
+        return -1;
+    }
+    auto ret = eth->connect();
+    if (ret != 0) {
+        tr_error("Connection error: %x", ret);
+        return -1;
+    }
+    tr_info("MAC: %s", eth->get_mac_address());
+    tr_info("Connection Success");
+      SocketAddress net;
+    eth->get_ip_address(&net);
+
   tr_info("IP address: %s",
-          eth.get_ip_address() ? eth.get_ip_address() : "None");
+          net.get_ip_address() ? net.get_ip_address() : "None");
 
   // Set the correct time
   time_t now = ntp.get_timestamp(200000) + 3600;
   set_time(now);
   char timeStr[20];
   //strftime(timeStr, 20, "%I:%M%p", now);
-  printf("Connected to Network: IP is: %s at %s\r\n", eth.get_ip_address(), ctime(&now));
+  printf("Connected to Network: IP is: %s at %s\r\n", net.get_ip_address(), ctime(&now));
   // Enable button 1
-  InterruptIn btn1(BUTTON1);
-  btn1.rise(btn1_rise_handler);
+
+  
+
+#ifdef TARGET_CY8CPROTO_062_4343W
+   InterruptIn btn1(P0_5); 
+   btn1.rise(buttonPressHandler);
+#else
+   InterruptIn btn1(BUTTON1); 
+    btn1.fall(buttonPressHandler);
+#endif
   
   if (!IotSdk_Init()) {
     tr_error("AWS Sdk: failed to initialize IotSdk");
@@ -297,7 +323,8 @@ int main() {
   
   bool doPublish = false;
   int errorCount = 0;
-
+  int buttonCount = 0;
+  buttonPress = false;
   while (A_OK) {
     wait_sem.try_acquire_for(50ms);
      while (!queue.empty()) {
@@ -322,7 +349,7 @@ int main() {
         case CMD_sendIPAddress:
           doPublish = true;
           sprintf(topic, "%s/IPAddress", MBED_CONF_APP_AWS_CLIENT_IDENTIFIER);
-          sprintf(update, "%s", eth.get_ip_address());
+          sprintf(update, "%s", net.get_ip_address());
           break;
         case CMD_sendAnnounce1:
           doPublish = true;
@@ -377,7 +404,7 @@ int main() {
             sprintf(mode, "Off");
          
           sprintf(update, "{\"state\": {\"reported\": {\"temperature\": \"%2.1f\", \"humidity\": \"%d%c\", \"lightLevel\": \"%d%c\", \"controlMode\": \"%s\", \"IPAddress\" : \"%s\"}}}", 
-                           pubData.tempC, pubData.relHumid, 0x25, pubData.lightLvl, 0x25, mode, eth.get_ip_address()  );
+                           pubData.tempC, pubData.relHumid, 0x25, pubData.lightLvl, 0x25, mode, net.get_ip_address()  );
           sprintf(topic, "%s", MBED_CONF_APP_AWS_MQTT_TOPIC);
         }
         mpool.free(message);
@@ -406,8 +433,13 @@ int main() {
         doPublish = false;
       }
     }
-    if (buttonPress)
-      A_OK = false;
+    if (buttonPress){ 
+
+        buttonPress = false;
+        sprintf(topic, "Button Count is %d", buttonCount++);
+        displaySendDebug(topic);
+        if (buttonCount >5) A_OK = false;
+    }
   }
 
   /* Close the MQTT connection. */
@@ -416,7 +448,7 @@ int main() {
   IotMqtt_Cleanup();
   IotSdk_Cleanup();
   time(&now);
-  printf("\033[2J\033[H...Done and shut down on %s... Published %d Messages\r\n", ctime(&now), pubCount);
+  printf("\033[2J\033[H...Done and shut down on %s... Published %d Messages and had %d errors\r\n", ctime(&now), pubCount, buttonCount);
 #ifdef LCD_PRESENT
   lcd.cls();
   lcd.printf("Shutting Down");
@@ -432,7 +464,9 @@ int main() {
 
   while (true) {
     ThisThread::sleep_for(1s);
+#ifndef TARGET_CY8CPROTO_062_4343W
     redLED = !redLED;
+#endif
   }
   return 0;
 }
