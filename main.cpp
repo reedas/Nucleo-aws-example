@@ -468,6 +468,5 @@ int main() {
     redLED = !redLED;
 #endif
   }
-  reset
   return 0;
 }

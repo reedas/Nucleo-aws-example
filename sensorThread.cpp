@@ -2,11 +2,15 @@
 #include "awsPublish.h"
 #include "displayThread.h"
 #ifdef TARGET_CY8CPROTO_062_4343W
+
+#define D2 P10_5
 #define D8 P10_3
 #define D9 P10_4
+
 #define A0 P10_0
 #define A1 P10_1
 #define A2 P10_2
+DigitalOut ThermPower(D2);
 
 #endif
 #define THERMISTOR_PRESENT
@@ -47,41 +51,29 @@ static AnalogIn thermOut1(A2);
 
 static float readTemp()
 {
+
 //    thermVDD = 1;
     static int lcount = 0;
-    static float Therm[8];
+    static float Therm[1000];
     float thermValue;
+    float resistance;
 //    uint16_t intThermValue;
     float rThermistor;
-    for (int lcount = 0; lcount < 8; lcount++) {
+    for (int lcount = 0; lcount < 1000; lcount++) {
+    ThermPower = 1;
     thermValue = thermOut1.read();//*2.4/3.3;
-    Therm[lcount] = (B_CONSTANT / (logf((R_REFERENCE / ( 1 / thermValue - 1 )) / 
-                                               R_INFINITY))) + ABSOLUTE_ZERO;
+    ThermPower = 0;
+
+    Therm[lcount] = (B_CONSTANT / (logf((R_REFERENCE / ( 1/ thermValue - 1 )) / 
+                                              R_INFINITY))) + ABSOLUTE_ZERO - 0.5;
     }
         float TempAverage = 0;
-        for (int i = 0; i < 8; i++){ 
+        for (int i = 0; i < 1000; i++){ 
             TempAverage += Therm[i]; 
-            //printf("%d ", (int)(Therm[i]*10));
         }
-//        intThermValue = thermOut1.read_u16();
-//        printf(" %d ", intThermValue & 0xfff);
-
-        return TempAverage/8;
-
-/*    float refVoltage = thermOut.read() * 2.4; // Range of ADC 0->2*Vref
-    float refCurrent = refVoltage  / 10000.0; // 10k Reference Resistor
-    float thermVoltage = 3.3 - refVoltage;    // Assume supply voltage is 3.3v
-    float thermResistance = thermVoltage / refCurrent; 
-    float logrT = (float32_t)log((float64_t)thermResistance);
-
-    // Calculate temperature from the resistance of thermistor using Steinhart-Hart Equation 
-    float stEqn = (float32_t)((0.0009032679) + ((0.000248772) * logrT) + 
-                             ((2.041094E-07) * pow((float64)logrT, (int)3)));
-
-    temperatureC = (float32_t)(((1.0 / stEqn) - 273.15)  + 0.5);
-    float temperatureF = (temperatureC * 9.0/5.0) + 32;
- */
+        return TempAverage/1000;
 }
+
 #endif
 #ifdef TMP36_PRESENT
 float readTemp() {
