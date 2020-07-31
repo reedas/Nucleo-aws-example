@@ -6,11 +6,11 @@
         },
         "aws-mqtt-topic": {
             "help": "Topic to publish shadow to",
-            "value": "\"$aws/things/City_AR_Thing3/shadow/update\""
+            "value": "\"$aws/things/City_AR_Thing2/shadow/update\""
         },
         "aws-client-identifier": {
             "help": "unique id for this thing",
-            "value": "\"AwsIoT_AR3\""
+            "value": "\"AwsIoT_AR2\""
         }
     },
     "target_overrides": {
