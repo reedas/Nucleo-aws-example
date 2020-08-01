@@ -448,7 +448,7 @@ int main() {
   IotMqtt_Cleanup();
   IotSdk_Cleanup();
   time(&now);
-  printf("\033[2J\033[H...Done and shut down on %s... Published %d Messages and had %d errors\r\n", ctime(&now), pubCount, buttonCount);
+  printf("\033[2J\033[H...Done and shut down on %s... Published %d Messages and had %d errors\r\n", ctime(&now), pubCount, errorCount);
 #ifdef LCD_PRESENT
   lcd.cls();
   lcd.printf("Shutting Down");
