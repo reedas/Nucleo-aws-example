@@ -9,14 +9,18 @@
 #define A2 P10_2
 
 #endif
-#define THERMISTOR_PRESENT
-#undef TMP36_PRESENT
+#undef THERMISTOR_PRESENT
+#define TMP36_PRESENT
 #undef DS18B20_Present
 
 extern float setPoint;
 extern bool A_OK;
 extern DigitalOut redLED;
 extern DigitalOut blueLED;
+  Dht11 humid(D9);
+  DS1820 ds1820(D8);
+  AnalogIn ldr(A0);
+  AnalogIn TM136(A1);
 #ifdef THERMISTOR_PRESENT
 
 /* Reference resistor in series with the thermistor is of 10 KOhm */
@@ -79,7 +83,7 @@ static float readTemp()
  */
 }
 #endif
-#ifdef TMP36
+#ifdef TMP36_PRESENT
 float readTemp() {
     float volts = 0;
     
@@ -95,10 +99,7 @@ void sensorThread(void)
   myData.setPoint = setPoint;
   bool updateRequired = true;
 
-  Dht11 humid(D9);
-  DS1820 ds1820(D8);
-  AnalogIn ldr(A0);
-  AnalogIn TM136(A1);
+
 
     while(!A_OK) {
         ThisThread::sleep_for(100ms);
