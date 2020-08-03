@@ -13,8 +13,8 @@
 DigitalOut ThermPower(D2);
 
 #endif
-#define THERMISTOR_PRESENT
-#undef TMP36_PRESENT
+#undef THERMISTOR_PRESENT
+#define TMP36_PRESENT
 #undef DS18B20_Present
 
 extern float setPoint;
